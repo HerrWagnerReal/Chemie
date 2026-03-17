@@ -1,0 +1,1058 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Reaktionsgleichungen mit Atomen</title>
+  <style>
+    :root {
+      --bg: #eef2f6;
+      --panel: rgba(255,255,255,0.96);
+      --border: #d5dce3;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --shadow: 0 8px 24px rgba(0,0,0,0.10);
+      --select: rgba(59,130,246,0.18);
+      --select-border: rgba(59,130,246,0.7);
+      --group: rgba(168,85,247,0.75);
+      --danger: rgba(239,68,68,0.45);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: Arial, Helvetica, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    #app {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    #workspace {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      background: radial-gradient(circle at 1px 1px, rgba(0,0,0,0.08) 1px, transparent 0);
+      background-size: 24px 24px;
+    }
+
+    #workspaceHeader,
+    #taskPanel,
+    #toolDrawer,
+    #trashHint,
+    #trashBin {
+      position: absolute;
+      z-index: 5;
+    }
+
+    #workspaceHeader,
+    #taskPanel,
+    #toolDrawer,
+    #trashHint {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: var(--shadow);
+    }
+
+    #workspaceHeader {
+      left: 16px;
+      top: 16px;
+      width: 320px;
+      padding: 10px 12px;
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    #taskPanel {
+      left: 16px;
+      top: 96px;
+      width: 360px;
+      max-height: 240px;
+      overflow: auto;
+      padding: 12px;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    #taskTitle {
+      font-weight: bold;
+      margin-bottom: 6px;
+    }
+
+    #taskEquation {
+      font-weight: bold;
+      margin-top: 6px;
+    }
+
+    #taskResult {
+      margin-top: 8px;
+      font-weight: bold;
+    }
+
+    
+
+    #taskDetails {
+      margin-top: 6px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    #toolDrawer {
+      left: 16px;
+      bottom: 16px;
+      width: min(760px, calc(100% - 220px));
+      padding: 12px;
+    }
+
+    #toolBarTop {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+
+    .action-btn {
+      border: 1px solid var(--border);
+      background: white;
+      border-radius: 10px;
+      padding: 8px 10px;
+      font-size: 12px;
+      cursor: pointer;
+      color: var(--text);
+    }
+
+    .action-btn:active,
+    .palette-item:active {
+      transform: scale(0.98);
+    }
+
+    #palette {
+      display: grid;
+      grid-template-columns: repeat(8, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .palette-item {
+      border: 1px solid var(--border);
+      background: #fbfcfd;
+      border-radius: 12px;
+      min-height: 82px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      cursor: pointer;
+      padding: 6px 4px;
+      font-size: 11px;
+      text-align: center;
+    }
+
+    .preview-circle {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      border: 2px solid rgba(0,0,0,0.16);
+      box-shadow: inset 0 -3px 8px rgba(0,0,0,0.12);
+    }
+
+    .preview-symbol {
+      width: 30px;
+      height: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      font-weight: bold;
+      position: relative;
+    }
+
+    .preview-symbol.arrow::before {
+      content: '';
+      position: absolute;
+      left: 3px;
+      top: 13px;
+      width: 18px;
+      height: 3px;
+      background: #374151;
+      border-radius: 999px;
+    }
+
+    .preview-symbol.arrow::after {
+      content: '';
+      position: absolute;
+      right: 4px;
+      top: 9px;
+      width: 8px;
+      height: 8px;
+      border-top: 3px solid #374151;
+      border-right: 3px solid #374151;
+      transform: rotate(45deg);
+    }
+
+    #trashBin {
+      right: 18px;
+      bottom: 180px;
+      width: 72px;
+      height: 72px;
+      border-radius: 18px;
+      background: rgba(255,255,255,0.96);
+      border: 2px solid #cbd5e1;
+      box-shadow: var(--shadow);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 34px;
+    }
+
+    #trashBin.active {
+      border-color: #ef4444;
+      background: rgba(254, 226, 226, 0.98);
+      transform: scale(1.04);
+    }
+
+    #trashHint {
+      right: 16px;
+      bottom: 96px;
+      width: 220px;
+      padding: 8px 10px;
+      font-size: 11px;
+      line-height: 1.3;
+    }
+
+    #successOverlay {
+      position: fixed;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      min-width: 240px;
+      max-width: min(90vw, 420px);
+      padding: 18px 22px;
+      border-radius: 18px;
+      background: rgba(22, 163, 74, 0.97);
+      color: white;
+      text-align: center;
+      font-size: 20px;
+      font-weight: bold;
+      box-shadow: 0 14px 30px rgba(0,0,0,0.28);
+      z-index: 2147483647;
+      display: none;
+    }
+
+    #successOverlay small {
+      display: block;
+      margin-top: 8px;
+      font-size: 13px;
+      font-weight: normal;
+      opacity: 0.95;
+    }
+
+    .placeable {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      touch-action: none;
+      z-index: 2;
+    }
+
+    .atom {
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      border: 2px solid rgba(0,0,0,0.18);
+      box-shadow: inset 0 -5px 12px rgba(0,0,0,0.14), 0 8px 14px rgba(0,0,0,0.12);
+      cursor: grab;
+    }
+
+    .symbol {
+      min-width: 34px;
+      min-height: 34px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      font-weight: bold;
+      color: #1f2937;
+      background: rgba(255,255,255,0.88);
+      border: 1px solid rgba(0,0,0,0.12);
+      border-radius: 12px;
+      box-shadow: 0 6px 12px rgba(0,0,0,0.1);
+      cursor: grab;
+      padding: 4px 8px;
+    }
+
+    .symbol.arrow {
+      width: 90px;
+      height: 36px;
+      border: none;
+      box-shadow: none;
+      background: transparent;
+      padding: 0;
+    }
+
+    .symbol.arrow::before {
+      content: '';
+      position: absolute;
+      left: 10px;
+      top: 16px;
+      width: 62px;
+      height: 4px;
+      background: #1f2937;
+      border-radius: 999px;
+    }
+
+    .symbol.arrow::after {
+      content: '';
+      position: absolute;
+      right: 10px;
+      top: 9px;
+      width: 12px;
+      height: 12px;
+      border-top: 4px solid #1f2937;
+      border-right: 4px solid #1f2937;
+      transform: rotate(45deg);
+    }
+
+    .atom-label,
+    .symbol-label {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      font-weight: bold;
+    }
+
+    .atom-label { font-size: 13px; }
+    .symbol-label { font-size: 28px; }
+    .atom.white .atom-label { color: rgba(0,0,0,0.7); }
+    .atom.black .atom-label,
+    .atom.red .atom-label,
+    .atom.green .atom-label,
+    .atom.blue .atom-label { color: rgba(255,255,255,0.92); }
+
+    .selected {
+      outline: 4px solid var(--group);
+      outline-offset: 2px;
+    }
+
+    .delete-armed {
+      outline: 4px solid var(--danger);
+      outline-offset: 2px;
+    }
+
+    #selectionBox {
+      position: absolute;
+      display: none;
+      pointer-events: none;
+      border: 2px dashed var(--select-border);
+      background: var(--select);
+      z-index: 4;
+    }
+
+    .divider-line {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: rgba(59,130,246,0.35);
+      z-index: 1;
+      pointer-events: none;
+      display: none;
+    }
+
+    body.show-guides .divider-line {
+      display: block;
+    }
+
+    @media (max-width: 900px) {
+      #workspaceHeader {
+        left: 10px;
+        top: 10px;
+        width: min(280px, calc(100% - 20px));
+      }
+
+      #taskPanel {
+        left: 10px;
+        top: 86px;
+        width: calc(100% - 20px);
+        max-height: 180px;
+      }
+
+      #toolDrawer {
+        left: 10px;
+        bottom: 10px;
+        width: calc(100% - 20px);
+      }
+
+      #palette {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+
+      .palette-item {
+        min-height: 72px;
+        font-size: 10px;
+      }
+
+      #trashBin {
+        right: 14px;
+        bottom: 220px;
+      }
+
+      #trashHint {
+        right: 10px;
+        bottom: 160px;
+        width: 180px;
+        font-size: 10px;
+      }
+    }
+
+    @media (max-width: 560px) {
+      #toolDrawer {
+        left: 8px;
+        bottom: 8px;
+        width: calc(100% - 16px);
+        padding: 8px;
+      }
+
+      .action-btn {
+        font-size: 11px;
+        padding: 7px 8px;
+      }
+
+      .palette-item {
+        min-height: 66px;
+      }
+
+      #taskPanel {
+        font-size: 11px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <main id="workspace">
+      <div id="workspaceHeader">
+        <strong>Arbeitsfläche</strong><br>
+        Ziehen auf leerer Fläche markiert mehrere Objekte. Longpress auf Gruppe dupliziert, Longpress auf einzelnes Objekt löscht.
+      </div>
+
+      <div id="taskPanel">
+        <div id="taskTitle">Aufgabe</div>
+        <div id="taskCategory">Noch keine Aufgabe geladen.</div>
+        <div id="taskEquation"></div>
+        <div id="taskEnergy"></div>
+        <div id="taskResult"></div>
+        <div id="taskDetails"></div>
+      </div>
+
+      <div id="trashBin" aria-label="Abfalleimer">🗑️</div>
+      <div id="trashHint">Ziehe Atome, Moleküle oder markierte Gruppen in den Abfalleimer, um sie zu löschen.</div>
+      <div id="successOverlay">Richtig gelöst!<small>Die Reaktionsgleichung wurde korrekt gelegt.</small></div>
+      <div id="selectionBox"></div>
+    </main>
+
+    <div id="toolDrawer">
+      <div id="toolBarTop">
+        <button class="action-btn" id="newTaskBtn" type="button">Neue Aufgabe</button>
+        <button class="action-btn" id="checkBtn" type="button">Prüfen</button>
+        <button class="action-btn" id="toggleGuidesBtn" type="button">Hilfslinien</button>
+        <button class="action-btn" id="clearBtn" type="button">Alles löschen</button>
+        <button class="action-btn" id="fullscreenBtn" type="button">Vollbild</button>
+      </div>
+      <div id="palette"></div>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      const workspace = document.getElementById('workspace');
+      const palette = document.getElementById('palette');
+      const selectionBox = document.getElementById('selectionBox');
+      const newTaskBtn = document.getElementById('newTaskBtn');
+      const checkBtn = document.getElementById('checkBtn');
+      const toggleGuidesBtn = document.getElementById('toggleGuidesBtn');
+      const clearBtn = document.getElementById('clearBtn');
+      const fullscreenBtn = document.getElementById('fullscreenBtn');
+      const trashBin = document.getElementById('trashBin');
+      const successOverlay = document.getElementById('successOverlay');
+      const taskCategory = document.getElementById('taskCategory');
+      const taskEquation = document.getElementById('taskEquation');
+      const taskEnergy = document.getElementById('taskEnergy');
+      const taskResult = document.getElementById('taskResult');
+      const taskDetails = document.getElementById('taskDetails');
+
+      const ATOM_SIZE = 50;
+      const PLUS_SIZE = 34;
+      const ARROW_W = 90;
+      const ARROW_H = 36;
+      const LONG_PRESS_MS = 700;
+      const MOVE_CANCEL_PX = 8;
+
+      const paletteItems = [
+        { kind: 'atom', key: 'red', label: 'Sauerstoff', color: '#e53935', symbol: 'O' },
+        { kind: 'atom', key: 'white', label: 'Wasserstoff', color: '#ffffff', symbol: 'H' },
+        { kind: 'atom', key: 'black', label: 'Kohlenstoff', color: '#212121', symbol: 'C' },
+        { kind: 'atom', key: 'green', label: 'Chlor', color: '#43a047', symbol: 'Cl' },
+        { kind: 'atom', key: 'yellow', label: 'Schwefel', color: '#fdd835', symbol: 'S' },
+        { kind: 'atom', key: 'blue', label: 'Stickstoff', color: '#1e88e5', symbol: 'N' },
+        { kind: 'symbol', key: 'plus', label: 'Plus', text: '+' },
+        { kind: 'symbol', key: 'arrow', label: 'Pfeil', text: '→' }
+      ];
+
+      const reactionTasks = [
+        { category: 'Synthese', equation: 'Wasserstoff (g.) + Sauerstoff (g.) → Diwasserstoffmonooxid (l.)', energy: 'exoenergetisch' },
+        { category: 'Synthese', equation: 'Wasserstoff (g.) + Chlor (g.) → Wasserstoffmonochlorid (g.)', energy: 'exoenergetisch' },
+        { category: 'Synthese', equation: 'Stickstoff (g.) + Wasserstoff (g.) → Stickstofftrihydrid (g.)', energy: 'exoenergetisch' },
+        { category: 'Synthese', equation: 'Kohlenstoff (g.) + Sauerstoff (g.) → Kohlenstoffmonoxid (g.)', energy: 'exoenergetisch' },
+        { category: 'Synthese', equation: 'Schwefel (g.) + Sauerstoff (g.) → Schwefeldioxid (g.)', energy: 'exoenergetisch' },
+        { category: 'Analyse', equation: 'Diwasserstoffmonooxid (l.) → Wasserstoff (g.) + Sauerstoff (g.)', energy: 'endoenergetisch' },
+        { category: 'Analyse', equation: 'Wasserstoffmonochlorid (g.) → Wasserstoff (g.) + Chlor (g.)', energy: 'endoenergetisch' },
+        { category: 'Analyse', equation: 'Stickstofftrihydrid (g.) → Stickstoff (g.) + Wasserstoff (g.)', energy: 'endoenergetisch' },
+        { category: 'Analyse', equation: 'Kohlenstoffmonoxid (g.) → Kohlenstoff (g.) + Sauerstoff (g.)', energy: 'endoenergetisch' },
+        { category: 'Analyse', equation: 'Schwefeldioxid (g.) → Schwefel (g.) + Sauerstoff (g.)', energy: 'endoenergetisch' }
+      ];
+
+      const taskDefinitions = {
+        'Wasserstoff (g.) + Sauerstoff (g.) → Diwasserstoffmonooxid (l.)': {
+          reactants: [{ H: 2 }, { H: 2 }, { O: 2 }],
+          products: [{ H: 2, O: 1 }, { H: 2, O: 1 }]
+        },
+        'Wasserstoff (g.) + Chlor (g.) → Wasserstoffmonochlorid (g.)': {
+          reactants: [{ H: 2 }, { Cl: 2 }],
+          products: [{ H: 1, Cl: 1 }, { H: 1, Cl: 1 }]
+        },
+        'Stickstoff (g.) + Wasserstoff (g.) → Stickstofftrihydrid (g.)': {
+          reactants: [{ N: 2 }, { H: 2 }, { H: 2 }, { H: 2 }],
+          products: [{ N: 1, H: 3 }, { N: 1, H: 3 }]
+        },
+        'Kohlenstoff (g.) + Sauerstoff (g.) → Kohlenstoffmonoxid (g.)': {
+          reactants: [{ C: 1 }, { C: 1 }, { O: 2 }],
+          products: [{ C: 1, O: 1 }, { C: 1, O: 1 }]
+        },
+        'Schwefel (g.) + Sauerstoff (g.) → Schwefeldioxid (g.)': {
+          reactants: [{ S: 8 }, { O: 2 },{ O: 2 },{ O: 2 },{ O: 2 },{ O: 2 },{ O: 2 }, { O: 2 }, { O: 2 }],
+          products: [{ S: 1, O: 2 }, { S: 1, O: 2 }, { S: 1, O: 2 }, { S: 1, O: 2 }, { S: 1, O: 2 }, { S: 1, O: 2 }, { S: 1, O: 2 }, { S: 1, O: 2 }]
+        },
+        'Diwasserstoffmonooxid (l.) → Wasserstoff (g.) + Sauerstoff (g.)': {
+          reactants: [{ H: 2, O: 1 }, { H: 2, O: 1 }],
+          products: [{ H: 2 }, { H: 2 }, { O: 2 }]
+        },
+        'Wasserstoffmonochlorid (g.) → Wasserstoff (g.) + Chlor (g.)': {
+          reactants: [{ H: 1, Cl: 1 }, { H: 1, Cl: 1 }],
+          products: [{ H: 2 }, { Cl: 2 }]
+        },
+        'Stickstofftrihydrid (g.) → Stickstoff (g.) + Wasserstoff (g.)': {
+          reactants: [{ N: 1, H: 3 }, { N: 1, H: 3 }],
+          products: [{ N: 2 }, { H: 2 }, { H: 2 }, { H: 2 }]
+        },
+        'Kohlenstoffmonoxid (g.) → Kohlenstoff (g.) + Sauerstoff (g.)': {
+          reactants: [{ C: 1, O: 1 }, { C: 1, O: 1 }],
+          products: [{ C: 1 }, { C: 1 }, { O: 2 }]
+        },
+        'Schwefeldioxid (g.) → Schwefel (g.) + Sauerstoff (g.)': {
+          reactants: [
+            { S: 1, O: 2 }, { S: 1, O: 2 }, { S: 1, O: 2 }, { S: 1, O: 2 },
+            { S: 1, O: 2 }, { S: 1, O: 2 }, { S: 1, O: 2 }, { S: 1, O: 2 }
+          ],
+          products: [
+            { S: 8 },
+            { O: 2 }, { O: 2 }, { O: 2 }, { O: 2 },
+            { O: 2 }, { O: 2 }, { O: 2 }, { O: 2 }
+          ]
+        }
+      };
+
+      let currentTask = null;
+      let zCounter = 20;
+      let selected = new Set();
+      let selectionState = null;
+      let guidesVisible = false;
+      let successTimer = null;
+
+      function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+      function allPlaceables() { return Array.from(workspace.querySelectorAll('.placeable')); }
+      function atomEls() { return allPlaceables().filter(el => el.dataset.kind === 'atom'); }
+      function getPoint(clientX, clientY) {
+        const r = workspace.getBoundingClientRect();
+        return { x: clientX - r.left, y: clientY - r.top };
+      }
+      function metrics(el) {
+        if (el.dataset.kind === 'symbol' && el.dataset.type === 'arrow') return { w: ARROW_W, h: ARROW_H };
+        if (el.dataset.kind === 'symbol') return { w: PLUS_SIZE, h: PLUS_SIZE };
+        return { w: ATOM_SIZE, h: ATOM_SIZE };
+      }
+      function clampPos(el, x, y) {
+        const r = workspace.getBoundingClientRect();
+        const m = metrics(el);
+        return {
+          x: clamp(x, m.w / 2, r.width - m.w / 2),
+          y: clamp(y, m.h / 2, r.height - m.h / 2)
+        };
+      }
+      function clearSelection() {
+        selected.forEach(el => el.classList.remove('selected'));
+        selected.clear();
+      }
+
+      function showSuccessMessage() {
+        if (successTimer) clearTimeout(successTimer);
+        successOverlay.style.display = 'block';
+        successTimer = setTimeout(() => {
+          successOverlay.style.display = 'none';
+        }, 1800);
+      }
+
+      function hideSuccessMessage() {
+        if (successTimer) clearTimeout(successTimer);
+        successOverlay.style.display = 'none';
+      }
+
+      function getTrashRect() {
+        return trashBin.getBoundingClientRect();
+      }
+
+      function elementIntersectsTrash(el) {
+        const a = el.getBoundingClientRect();
+        const b = getTrashRect();
+        return !(a.right < b.left || a.left > b.right || a.bottom < b.top || a.top > b.bottom);
+      }
+
+      function deleteElements(elements) {
+        elements.forEach(item => {
+          selected.delete(item);
+          item.remove();
+        });
+        renderGuides();
+      }
+      function selectOnly(items) {
+        clearSelection();
+        items.forEach(el => { selected.add(el); el.classList.add('selected'); });
+      }
+
+      function buildPalette() {
+        palette.innerHTML = '';
+        paletteItems.forEach(def => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'palette-item';
+          if (def.kind === 'atom') {
+            btn.innerHTML = `<div class="preview-circle" style="background:${def.color}"></div><div>${def.label}</div>`;
+          } else if (def.key === 'plus') {
+            btn.innerHTML = `<div class="preview-symbol">+</div><div>Plus</div>`;
+          } else {
+            btn.innerHTML = `<div class="preview-symbol arrow"></div><div>Pfeil</div>`;
+          }
+          btn.addEventListener('click', () => {
+            const r = workspace.getBoundingClientRect();
+            const created = createPlaceable(def, r.width * 0.5, r.height * 0.58);
+            selectOnly([created]);
+            renderGuides();
+          });
+          palette.appendChild(btn);
+        });
+      }
+
+      function createPlaceable(def, x, y) {
+        return def.kind === 'atom' ? createAtom(def, x, y) : createSymbol(def, x, y);
+      }
+
+      function createAtom(def, x, y) {
+        const el = document.createElement('div');
+        el.className = `placeable atom ${def.key}`;
+        el.dataset.kind = 'atom';
+        el.dataset.type = def.key;
+        el.dataset.activated = 'false';
+        el.style.background = def.color;
+        el.style.left = `${x}px`;
+        el.style.top = `${y}px`;
+        el.style.zIndex = ++zCounter;
+        const label = document.createElement('div');
+        label.className = 'atom-label';
+        label.textContent = def.symbol;
+        el.appendChild(label);
+        workspace.appendChild(el);
+        attachInteraction(el);
+        return el;
+      }
+
+      function createSymbol(def, x, y) {
+        const el = document.createElement('div');
+        el.className = `placeable symbol ${def.key}`;
+        if (def.key === 'arrow') el.classList.add('arrow');
+        el.dataset.kind = 'symbol';
+        el.dataset.type = def.key;
+        el.style.left = `${x}px`;
+        el.style.top = `${y}px`;
+        el.style.zIndex = ++zCounter;
+        if (def.key === 'plus') {
+          const label = document.createElement('div');
+          label.className = 'symbol-label';
+          label.textContent = '+';
+          el.appendChild(label);
+        }
+        workspace.appendChild(el);
+        attachInteraction(el);
+        return el;
+      }
+
+      function duplicateSelection() {
+        const clones = [];
+        Array.from(selected).forEach(source => {
+          const def = paletteItems.find(d => d.kind === source.dataset.kind && d.key === source.dataset.type);
+          const clone = createPlaceable(def, parseFloat(source.style.left) + 24, parseFloat(source.style.top) + 24);
+          if (clone.dataset.kind === 'atom') clone.dataset.activated = 'false';
+          clones.push(clone);
+        });
+        selectOnly(clones);
+        renderGuides();
+      }
+
+      function getConnectedAtoms(startAtom) {
+        const atoms = atomEls();
+        const visited = new Set([startAtom]);
+        const stack = [startAtom];
+        while (stack.length) {
+          const current = stack.pop();
+          atoms.forEach(other => {
+            if (!visited.has(other) && connected(current, other)) {
+              visited.add(other);
+              stack.push(other);
+            }
+          });
+        }
+        return Array.from(visited);
+      }
+
+      function attachInteraction(el) {
+        let pointerId = null;
+        let startX = 0;
+        let startY = 0;
+        let dragItems = [];
+        let longPressTimer = null;
+        let longPressDone = false;
+
+        function clearLongPress() {
+          if (longPressTimer) clearTimeout(longPressTimer);
+          longPressTimer = null;
+          dragItems.forEach(item => item.el.classList.remove('delete-armed'));
+          el.classList.remove('delete-armed');
+        }
+
+        el.addEventListener('pointerdown', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          hideSuccessMessage();
+          if (!selected.has(el)) selectOnly([el]);
+          pointerId = e.pointerId;
+          el.setPointerCapture(pointerId);
+          startX = e.clientX;
+          startY = e.clientY;
+          const moveGroup = selected.has(el) && selected.size > 1;
+          let itemsToMove;
+          if (moveGroup) {
+            itemsToMove = Array.from(selected);
+          } else if (el.dataset.kind === 'atom') {
+            itemsToMove = getConnectedAtoms(el);
+          } else {
+            itemsToMove = [el];
+          }
+          dragItems = itemsToMove.map(item => ({
+            el: item,
+            x: parseFloat(item.style.left),
+            y: parseFloat(item.style.top)
+          }));
+          dragItems.forEach(item => item.el.style.zIndex = ++zCounter);
+          longPressDone = false;
+          longPressTimer = setTimeout(() => {
+            longPressDone = true;
+            if (moveGroup) {
+              dragItems.forEach(item => item.el.classList.add('delete-armed'));
+              duplicateSelection();
+            } else {
+              el.classList.add('delete-armed');
+              selected.delete(el);
+              el.remove();
+              renderGuides();
+            }
+          }, LONG_PRESS_MS);
+        });
+
+        el.addEventListener('pointermove', (e) => {
+          if (e.pointerId !== pointerId) return;
+          if (longPressDone) return;
+          const dx = e.clientX - startX;
+          const dy = e.clientY - startY;
+          if (Math.hypot(dx, dy) > MOVE_CANCEL_PX) {
+            clearLongPress();
+            dragItems.forEach(item => {
+              if (item.el.dataset.kind === 'atom') item.el.dataset.activated = 'true';
+            });
+          }
+          dragItems.forEach(item => {
+            const p = clampPos(item.el, item.x + dx, item.y + dy);
+            item.el.style.left = `${p.x}px`;
+            item.el.style.top = `${p.y}px`;
+          });
+          const overTrash = dragItems.some(item => elementIntersectsTrash(item.el));
+          trashBin.classList.toggle('active', overTrash);
+          renderGuides();
+        });
+
+        function end(e) {
+          if (e && e.pointerId !== pointerId) return;
+          const deleteInTrash = dragItems.length && dragItems.some(item => elementIntersectsTrash(item.el));
+          clearLongPress();
+          if (deleteInTrash) {
+            deleteElements(dragItems.map(item => item.el));
+          }
+          trashBin.classList.remove('active');
+          pointerId = null;
+          dragItems = [];
+        }
+        el.addEventListener('pointerup', end);
+        el.addEventListener('pointercancel', end);
+        el.addEventListener('lostpointercapture', end);
+      }
+
+      workspace.addEventListener('pointerdown', (e) => {
+        if (e.target !== workspace && e.target !== selectionBox) return;
+        clearSelection();
+        const p = getPoint(e.clientX, e.clientY);
+        selectionState = { id: e.pointerId, x: p.x, y: p.y };
+        workspace.setPointerCapture(e.pointerId);
+        selectionBox.style.display = 'block';
+        selectionBox.style.left = `${p.x}px`;
+        selectionBox.style.top = `${p.y}px`;
+        selectionBox.style.width = '0px';
+        selectionBox.style.height = '0px';
+      });
+
+      workspace.addEventListener('pointermove', (e) => {
+        if (!selectionState || e.pointerId !== selectionState.id) return;
+        const p = getPoint(e.clientX, e.clientY);
+        const left = Math.min(selectionState.x, p.x);
+        const top = Math.min(selectionState.y, p.y);
+        const width = Math.abs(selectionState.x - p.x);
+        const height = Math.abs(selectionState.y - p.y);
+        selectionBox.style.left = `${left}px`;
+        selectionBox.style.top = `${top}px`;
+        selectionBox.style.width = `${width}px`;
+        selectionBox.style.height = `${height}px`;
+      });
+
+      function endSelection(e) {
+        if (!selectionState || e.pointerId !== selectionState.id) return;
+        const box = selectionBox.getBoundingClientRect();
+        selectionBox.style.display = 'none';
+        const hits = allPlaceables().filter(el => {
+          const r = el.getBoundingClientRect();
+          return !(r.right < box.left || r.left > box.right || r.bottom < box.top || r.top > box.bottom);
+        });
+        if (hits.length) selectOnly(hits);
+        selectionState = null;
+      }
+      workspace.addEventListener('pointerup', endSelection);
+      workspace.addEventListener('pointercancel', endSelection);
+
+      function showRandomTask() {
+        currentTask = reactionTasks[Math.floor(Math.random() * reactionTasks.length)];
+        taskCategory.textContent = currentTask.category;
+        taskEquation.textContent = currentTask.equation;
+        taskEnergy.textContent = currentTask.energy;
+        taskResult.textContent = '';
+        taskDetails.textContent = '';
+      }
+
+      function typeToSymbol(type) {
+        return { red: 'O', white: 'H', black: 'C', green: 'Cl', yellow: 'S', blue: 'N' }[type] || '?';
+      }
+
+      function connected(a, b) {
+        if (a.dataset.kind !== 'atom' || b.dataset.kind !== 'atom') return false;
+        if (a.dataset.activated !== 'true' || b.dataset.activated !== 'true') return false;
+        const ax = parseFloat(a.style.left), ay = parseFloat(a.style.top);
+        const bx = parseFloat(b.style.left), by = parseFloat(b.style.top);
+        return Math.hypot(ax - bx, ay - by) <= ATOM_SIZE * 0.95;
+      }
+
+      function buildMolecules(atoms) {
+        const seen = new Set();
+        const molecules = [];
+        atoms.forEach(atom => {
+          if (seen.has(atom)) return;
+          const stack = [atom];
+          const group = [];
+          seen.add(atom);
+          while (stack.length) {
+            const cur = stack.pop();
+            group.push(cur);
+            atoms.forEach(other => {
+              if (!seen.has(other) && connected(cur, other)) {
+                seen.add(other);
+                stack.push(other);
+              }
+            });
+          }
+          const counts = {};
+          group.forEach(item => {
+            const s = typeToSymbol(item.dataset.type);
+            counts[s] = (counts[s] || 0) + 1;
+          });
+          molecules.push(counts);
+        });
+        return molecules;
+      }
+
+      function signature(m) {
+        return Object.entries(m).sort(([a],[b]) => a.localeCompare(b)).map(([k,v]) => `${k}${v}`).join('-');
+      }
+
+      function dividerData() {
+        return allPlaceables()
+          .filter(el => el.dataset.kind === 'symbol')
+          .map(el => ({ type: el.dataset.type, x: parseFloat(el.style.left) }))
+          .sort((a, b) => a.x - b.x);
+      }
+
+      function splitZones() {
+        const divs = dividerData();
+        const arrows = divs.filter(d => d.type === 'arrow');
+        if (arrows.length !== 1) return { error: 'Genau ein Reaktionspfeil ist nötig.' };
+        const arrowX = arrows[0].x;
+        const plusL = divs.filter(d => d.type === 'plus' && d.x < arrowX).map(d => d.x).sort((a,b)=>a-b);
+        const plusR = divs.filter(d => d.type === 'plus' && d.x > arrowX).map(d => d.x).sort((a,b)=>a-b);
+        const width = workspace.getBoundingClientRect().width;
+        const atoms = atomEls();
+        function ranges(start, mids, end) {
+          const pts = [start, ...mids, end];
+          const res = [];
+          for (let i = 0; i < pts.length - 1; i++) res.push({ left: pts[i], right: pts[i+1] });
+          return res;
+        }
+        function atomsPerRange(rgs) {
+          return rgs.map(r => atoms.filter(a => {
+            const x = parseFloat(a.style.left);
+            return x > r.left && x < r.right;
+          }));
+        }
+        return {
+          reactants: atomsPerRange(ranges(0, plusL, arrowX)).flatMap(buildMolecules),
+          products: atomsPerRange(ranges(arrowX, plusR, width)).flatMap(buildMolecules)
+        };
+      }
+
+      function checkTask() {
+        if (!currentTask) return;
+        hideSuccessMessage();
+
+        const actual = splitZones();
+        if (actual.error) {
+          taskResult.textContent = 'Prüfung nicht möglich';
+          taskDetails.textContent = actual.error;
+          return;
+        }
+
+        const expected = taskDefinitions[currentTask.equation];
+        const actualLeft = actual.reactants.map(signature).sort();
+        const actualRight = actual.products.map(signature).sort();
+        const expectedLeft = expected.reactants.map(signature).sort();
+        const expectedRight = expected.products.map(signature).sort();
+
+        const moleculeTypesLeftOk = new Set(actualLeft).size === new Set(expectedLeft).size
+          && [...new Set(expectedLeft)].every(sig => actualLeft.includes(sig));
+        const moleculeTypesRightOk = new Set(actualRight).size === new Set(expectedRight).size
+          && [...new Set(expectedRight)].every(sig => actualRight.includes(sig));
+        const moleculeKindsOk = moleculeTypesLeftOk && moleculeTypesRightOk;
+
+        const moleculeCountsLeftOk = JSON.stringify(actualLeft) === JSON.stringify(expectedLeft);
+        const moleculeCountsRightOk = JSON.stringify(actualRight) === JSON.stringify(expectedRight);
+        const moleculeCountsOk = moleculeCountsLeftOk && moleculeCountsRightOk;
+
+        const leftFeedback = moleculeTypesLeftOk
+          ? (moleculeCountsLeftOk ? 'links: Moleküle und Anzahl passend' : 'links: Moleküle passend, Anzahl noch nicht passend')
+          : 'links: Moleküle noch nicht passend';
+        const rightFeedback = moleculeTypesRightOk
+          ? (moleculeCountsRightOk ? 'rechts: Moleküle und Anzahl passend' : 'rechts: Moleküle passend, Anzahl noch nicht passend')
+          : 'rechts: Moleküle noch nicht passend';
+
+        if (moleculeKindsOk && moleculeCountsOk) {
+          taskResult.textContent = 'Richtig aufgebaut';
+          taskDetails.textContent = `${leftFeedback} · ${rightFeedback}`;
+          showSuccessMessage();
+        } else {
+          taskResult.textContent = 'Teilweise korrekt';
+          taskDetails.textContent = `${leftFeedback} · ${rightFeedback}`;
+        }
+      }
+
+      function renderGuides() {
+        workspace.querySelectorAll('.divider-line').forEach(el => el.remove());
+        dividerData().forEach(d => {
+          const line = document.createElement('div');
+          line.className = 'divider-line';
+          line.style.left = `${d.x}px`;
+          workspace.appendChild(line);
+        });
+      }
+
+      newTaskBtn.addEventListener('click', () => {
+        hideSuccessMessage();
+        showRandomTask();
+      });
+      checkBtn.addEventListener('click', checkTask);
+      toggleGuidesBtn.addEventListener('click', () => {
+        guidesVisible = !guidesVisible;
+        document.body.classList.toggle('show-guides', guidesVisible);
+      });
+      clearBtn.addEventListener('click', () => {
+        hideSuccessMessage();
+        clearSelection();
+        allPlaceables().forEach(el => el.remove());
+        renderGuides();
+      });
+      fullscreenBtn.addEventListener('click', async () => {
+        try {
+          if (!document.fullscreenElement) {
+            await document.documentElement.requestFullscreen();
+            fullscreenBtn.textContent = 'Vollbild aus';
+          } else {
+            await document.exitFullscreen();
+            fullscreenBtn.textContent = 'Vollbild';
+          }
+        } catch (err) {
+          console.error(err);
+        }
+      });
+      document.addEventListener('fullscreenchange', () => {
+        fullscreenBtn.textContent = document.fullscreenElement ? 'Vollbild aus' : 'Vollbild';
+      });
+
+      buildPalette();
+      showRandomTask();
+
+      const r = workspace.getBoundingClientRect();
+      createAtom(paletteItems[0], r.width * 0.34, r.height * 0.52);
+      createAtom(paletteItems[1], r.width * 0.42, r.height * 0.44);
+      createAtom(paletteItems[1], r.width * 0.26, r.height * 0.60);
+      createSymbol(paletteItems[6], r.width * 0.55, r.height * 0.52);
+      createSymbol(paletteItems[7], r.width * 0.72, r.height * 0.52);
+      renderGuides();
+    })();
+  </script>
+</body>
+</html>
