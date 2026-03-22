@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wasserstrahlversuch – aktualisiert</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, sans-serif; background: #eef3f8; color: #1f2a36; }
+    .wrap { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
+    .panel { width: min(1000px, 100%); background: #fff; border: 1px solid #d7e0ea; border-radius: 18px; overflow: hidden; box-shadow: 0 12px 30px rgba(0,0,0,0.08); }
+    .header { padding: 18px 22px; border-bottom: 1px solid #d7e0ea; background: #f8fbff; }
+    .header h1 { margin: 0 0 6px; font-size: 22px; }
+    .header p { margin: 0; color: #5b6b7b; font-size: 14px; }
+
+    .stage {
+      position: relative;
+      height: 620px;
+      background: linear-gradient(180deg, #f7fbff 0%, #e9f1f8 100%);
+      overflow: hidden;
+      touch-action: none;
+      user-select: none;
+    }
+
+    .rotate-overlay {
+      position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
+      background: rgba(10,20,30,0.92); color: #fff; z-index: 20; text-align: center; padding: 24px; font-size: 18px;
+    }
+    .rotate-overlay.active { display: flex; }
+    .rotate-overlay .box { max-width: 320px; line-height: 1.4; }
+    .rotate-overlay button {
+      margin-top: 16px; padding: 10px 14px; border-radius: 10px; border: none;
+      background: #4ea5f7; color: white; font-size: 14px;
+    }
+
+    .hint {
+      position: absolute; left: 20px; bottom: 20px; background: rgba(255,255,255,0.9);
+      border: 1px solid #d7e0ea; border-radius: 12px; padding: 10px 14px; font-size: 14px; color: #526171;
+    }
+
+    .fabric-group {
+      position: absolute; left: 44px; top: 170px; width: 220px; height: 220px; pointer-events: none;
+    }
+    .fabric-body {
+      position: absolute; left: 24px; top: 34px; width: 172px; height: 146px;
+      border-radius: 26px 26px 34px 34px;
+      background: repeating-linear-gradient(90deg, #8f5a34 0 10px, #a86c40 10px 20px, #7c4b29 20px 30px);
+      border: 2px solid rgba(88, 52, 28, 0.35); box-shadow: 0 14px 28px rgba(88, 52, 28, 0.18);
+    }
+    .fabric-neck {
+      position: absolute; left: 84px; top: 18px; width: 52px; height: 40px; background: #f7fbff;
+      border-radius: 0 0 20px 20px; border: 2px solid rgba(88, 52, 28, 0.2); border-top: none;
+    }
+    .fabric-cuff {
+      position: absolute; top: 58px; width: 58px; height: 96px;
+      background: repeating-linear-gradient(90deg, #8f5a34 0 10px, #a86c40 10px 20px, #7c4b29 20px 30px);
+      border: 2px solid rgba(88, 52, 28, 0.35); box-shadow: 0 10px 20px rgba(88, 52, 28, 0.12);
+    }
+    .fabric-cuff-left { left: 0; border-radius: 24px 16px 18px 28px; transform: rotate(18deg); }
+    .fabric-cuff-right { right: 0; border-radius: 16px 24px 28px 18px; transform: rotate(-18deg); }
+    .fabric-fuzz {
+      position: absolute; width: 42px; height: 22px;
+      background:
+        radial-gradient(circle at 6px 16px, #6b4123 0 8px, transparent 8px),
+        radial-gradient(circle at 18px 10px, #8f5a34 0 8px, transparent 8px),
+        radial-gradient(circle at 30px 14px, #a86c40 0 8px, transparent 8px);
+      opacity: 0.95;
+    }
+    .fabric-fuzz-1 { left: 18px; top: 154px; transform: rotate(-8deg); }
+    .fabric-fuzz-2 { left: 88px; top: 176px; }
+    .fabric-fuzz-3 { left: 154px; top: 150px; transform: rotate(8deg); }
+
+    .proton-layer, .fabric-electron-layer, .balloon-fixed-layer, .electron-layer {
+      position: absolute; inset: 0; pointer-events: none; overflow: visible;
+    }
+
+    .proton {
+      position: absolute; width: 22px; height: 22px; border-radius: 50%;
+      background: radial-gradient(circle at 34% 32%, #ffd7d7 0 18%, #ff8b8b 19%, #e34f4f 68%, #bf2f2f 100%);
+      border: 1px solid rgba(128, 28, 28, 0.34); box-shadow: 0 2px 6px rgba(191, 47, 47, 0.22);
+      display: grid; place-items: center; color: white; font-weight: 700; font-size: 14px; line-height: 1;
+      transform: translate(-50%, -50%); opacity: 0.96;
+    }
+    .proton::before { content: '+'; transform: translateY(-0.5px); }
+
+    .balloon-group {
+      position: absolute; left: 360px; top: 180px; width: 140px; height: 230px; cursor: grab;
+      touch-action: none; transition: filter 0.12s linear, transform 0.12s linear;
+    }
+    .balloon-group.dragging { cursor: grabbing; }
+    .balloon-body {
+      position: absolute; left: 10px; top: 0; width: 120px; height: 150px;
+      border-radius: 52% 48% 50% 50% / 42% 42% 58% 58%;
+      background:
+        radial-gradient(circle at 35% 25%, rgba(255,255,255,0.65) 0 10%, transparent 11%),
+        radial-gradient(circle at 38% 28%, rgba(255,255,255,0.22) 0 22%, transparent 23%),
+        linear-gradient(160deg, #ff7fa0 0%, #e5456a 55%, #b91f46 100%);
+      border: 2px solid rgba(120, 20, 45, 0.18);
+      box-shadow: 0 18px 28px rgba(185, 31, 70, 0.22);
+      transform-origin: center center;
+      will-change: transform, filter;
+    }
+    .balloon-knot {
+      position: absolute; left: 61px; top: 140px; width: 18px; height: 18px; background: #a61b3f;
+      transform: rotate(45deg); border-radius: 4px;
+    }
+
+    .electron {
+      position: absolute; width: 18px; height: 18px; border-radius: 50%;
+      background: radial-gradient(circle at 32% 30%, #dff4ff 0 18%, #71c8ff 19%, #2f8ef3 70%, #1c66cf 100%);
+      border: 1px solid rgba(18, 72, 145, 0.35); box-shadow: 0 2px 6px rgba(47, 142, 243, 0.28);
+      display: grid; place-items: center; color: white; font-weight: 700; font-size: 12px; line-height: 1;
+      transform: translate(-50%, -50%); opacity: 0;
+      transition: opacity 0.14s linear;
+    }
+    .electron::before { content: '−'; transform: translateY(-1px); }
+
+    .fixed-proton {
+      width: 20px; height: 20px; opacity: 0.92;
+    }
+    .fixed-electron {
+      width: 16px; height: 16px; opacity: 0.95;
+    }
+
+    .electron-transfer, .water-electron, .electron-air {
+      position: absolute; width: 16px; height: 16px; border-radius: 50%;
+      background: radial-gradient(circle at 32% 30%, #dff4ff 0 18%, #71c8ff 19%, #2f8ef3 70%, #1c66cf 100%);
+      border: 1px solid rgba(18, 72, 145, 0.32); box-shadow: 0 2px 5px rgba(47, 142, 243, 0.22);
+      display: grid; place-items: center; color: white; font-weight: 700; font-size: 11px; line-height: 1;
+      pointer-events: none; z-index: 4; transform: translate(-50%, -50%);
+    }
+    .electron-transfer { animation: flyElectron 0.42s ease-out forwards; }
+    .water-electron { opacity: 0; }
+    .electron-air { animation: driftElectronAway 1.6s ease-out forwards; }
+    .electron-transfer::before, .water-electron::before, .electron-air::before { content: '−'; transform: translateY(-1px); }
+
+    @keyframes flyElectron {
+      0% { opacity: 0; transform: translate(-50%, -50%) scale(0.6); }
+      18% { opacity: 1; }
+      100% { opacity: 0; transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1); }
+    }
+    @keyframes driftElectronAway {
+      0% { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
+      12% { opacity: 1; }
+      100% { opacity: 0; transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(0.7); }
+    }
+
+    .charge-panel {
+      position: absolute; left: 20px; top: 20px; width: 210px; padding: 12px 14px;
+      background: rgba(255,255,255,0.92); border: 1px solid #d7e0ea; border-radius: 14px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.08); font-size: 14px; color: #334455;
+    }
+    .charge-title { font-weight: 700; margin-bottom: 8px; }
+    .charge-bar {
+      width: 100%; height: 12px; background: #e6edf5; border-radius: 999px; overflow: hidden; margin-bottom: 8px;
+    }
+    .charge-fill {
+      width: 0%; height: 100%; background: linear-gradient(90deg, #8fd3ff 0%, #4ea5f7 55%, #7a5cff 100%);
+      border-radius: 999px; transition: width 0.08s linear;
+    }
+    .charge-text { font-size: 13px; color: #526171; line-height: 1.35; }
+
+    .water-wrap {
+      position: absolute; right: 120px; top: 0; width: 168px; height: 560px; pointer-events: none;
+    }
+    
+    .water-molecule-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    .water-stream { width: 100%; height: 100%; overflow: visible; }
+    .water-stream path { fill: #4ea5f7; }
+
+    .ground {
+      position: absolute; bottom: 0; left: 0; width: 100%; height: 60px; background: linear-gradient(180deg,#cfd8e3,#aab7c6);
+    }
+
+    body.mobile-mode .panel,
+    body.mobile-mode .charge-panel,
+    body.mobile-mode .fabric-body,
+    body.mobile-mode .fabric-cuff,
+    body.mobile-mode .balloon-body,
+    body.mobile-mode .proton,
+    body.mobile-mode .electron,
+    body.mobile-mode .water-molecule-o,
+    body.mobile-mode .water-molecule-h,
+    body.mobile-mode .electron-transfer,
+    body.mobile-mode .electron-air,
+    body.mobile-mode .water-electron {
+      box-shadow: none;
+    }
+    body.mobile-mode .charge-panel { background: rgba(255,255,255,0.96); }
+    body.mobile-mode .balloon-group { transition: none; }
+    body.mobile-mode .electron-transfer,
+    body.mobile-mode .electron-air,
+    body.mobile-mode .water-electron { animation-duration: 0.9s; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="panel">
+      <div class="header">
+        <h1>Der Wasserstrahlversuch auf Teilchenebene</h1>
+        
+      </div>
+
+      <div class="stage" id="stage">
+        <div class="rotate-overlay" id="rotateOverlay">
+          <div class="box">
+            Bitte Gerät drehen (Querformat)
+            <br />Für optimale Darstellung
+            <br /><button id="rotateBtn" type="button">Querformat aktivieren</button>
+          </div>
+        </div>
+
+        <div class="water-wrap" aria-hidden="true">
+          <svg class="water-stream" viewBox="0 0 168 560" preserveAspectRatio="none">
+            <path id="waterPath" d="M 48 0 C 48 140, 48 300, 54 500 L 114 500 C 120 300, 120 140, 120 0 Z"></path>
+          </svg>
+          <canvas class="water-molecule-canvas" id="waterMoleculeCanvas" aria-hidden="true"></canvas>
+        </div>
+
+        <div class="ground"></div>
+
+        <div class="fabric-group" aria-label="Stück Stoff oder Fell">
+          <div class="fabric-body"></div>
+          <div class="fabric-cuff fabric-cuff-left"></div>
+          <div class="fabric-cuff fabric-cuff-right"></div>
+          <div class="fabric-neck"></div>
+          <div class="fabric-fuzz fabric-fuzz-1"></div>
+          <div class="fabric-fuzz fabric-fuzz-2"></div>
+          <div class="fabric-fuzz fabric-fuzz-3"></div>
+          <div class="proton-layer" id="protonLayer"></div>
+          <div class="fabric-electron-layer" id="fabricElectronLayer"></div>
+        </div>
+
+        <div class="balloon-group" id="balloon" aria-label="Beweglicher Luftballon">
+          <div class="balloon-body"></div>
+          <div class="balloon-knot"></div>
+          <div class="balloon-fixed-layer" id="balloonFixedLayer"></div>
+          <div class="electron-layer" id="electronLayer"></div>
+        </div>
+
+        <div class="charge-panel">
+          <div class="charge-title">Elektrostatische Ladung</div>
+          <div class="charge-bar"><div class="charge-fill" id="chargeFill"></div></div>
+          <div class="charge-text" id="chargeText">0 / 100 – noch nicht aufgeladen</div>
+        </div>
+
+        <div class="hint">Den Luftballon über dem Pullover hin und her ziehen und dann an den Wasserstrahl heranführen</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const stage = document.getElementById('stage');
+    const balloon = document.getElementById('balloon');
+    const balloonBodyEl = balloon.querySelector('.balloon-body');
+    const balloonFixedLayer = document.getElementById('balloonFixedLayer');
+    const waterPath = document.getElementById('waterPath');
+    const fabric = document.querySelector('.fabric-group');
+    const chargeFill = document.getElementById('chargeFill');
+    const chargeText = document.getElementById('chargeText');
+    const waterWrapEl = document.querySelector('.water-wrap');
+    const electronLayer = document.getElementById('electronLayer');
+    const waterMoleculeCanvas = document.getElementById('waterMoleculeCanvas');
+    const waterMoleculeCtx = waterMoleculeCanvas.getContext('2d');
+    const protonLayer = document.getElementById('protonLayer');
+    const fabricElectronLayer = document.getElementById('fabricElectronLayer');
+    const rotateOverlay = document.getElementById('rotateOverlay');
+    const rotateBtn = document.getElementById('rotateBtn');
+
+    const drag = { active: false, pointerId: null, offsetX: 0, offsetY: 0, lastX: null, rubbing: false };
+    const chargeState = { value: 0, max: 100, electrons: [], lastRenderedBucket: -1, lastRenderedValue: -1 };
+    const fabricChargeState = {
+      electrons: [], lastRenderedCount: -1,
+      slots: [{x:58,y:64},{x:98,y:58},{x:140,y:66},{x:176,y:60},{x:64,y:104},{x:112,y:96},{x:154,y:104},{x:82,y:140},{x:126,y:146},{x:170,y:138}]
+    };
+
+    const mobileMode = window.matchMedia('(max-width: 768px), (pointer: coarse)').matches;
+    document.body.classList.toggle('mobile-mode', mobileMode);
+
+    const chargeDecayPerMs = 0.004;
+    const laneOffsets = [-28, -14, 0, 14, 28];
+    const laneCooldownMs = mobileMode ? 340 : 260;
+    const laneState = laneOffsets.map(() => ({ lastSpawnTime: -Infinity }));
+    const moleculeFlowSpeed = 0.00018;
+    const moleculeCount = mobileMode ? 10 : 16;
+    const collisionCheckStride = mobileMode ? 3 : 1;
+    const frameIntervalMs = mobileMode ? 1000 / 30 : 1000 / 60;
+
+    const metrics = {
+      stageWidth: 0, stageHeight: 0, stageScale: 1,
+      waterWrapLeft: 0, waterWrapCenterX: 0, fabricRect: null,
+      balloonWidth: 0, balloonHeight: 0, balloonBodyWidth: 0, balloonBodyHeight: 0
+    };
+
+    const simState = {
+      balloonX: 360, balloonY: 180, balloonCenterX: 0, balloonCenterY: 0,
+      bodyCenterX: 0, bodyCenterY: 0, bodyLeft: 0, bodyTop: 0, bendState: null
+    };
+
+    const waterMolecules = Array.from({ length: moleculeCount }, (_, index) => ({
+      progress: index / moleculeCount, speed: moleculeFlowSpeed, lane: index % laneOffsets.length, el: null,
+      rotation: -180 + Math.random() * 360, freeRotation: -180 + Math.random() * 360,
+      freeRotationSpeed: (Math.random() < 0.5 ? -1 : 1) * (0.018 + Math.random() * 0.03),
+      polarRotation: 0, aligned: false, lastInfluence: 0
+    }));
+    waterMolecules.forEach((molecule, index) => { laneState[molecule.lane].lastSpawnTime = -index * 80; });
+
+    function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
+
+    function checkOrientation() {
+      if (!mobileMode) { rotateOverlay.classList.remove('active'); return false; }
+      const isPortrait = window.innerHeight > window.innerWidth;
+      rotateOverlay.classList.toggle('active', isPortrait);
+      return isPortrait;
+    }
+    async function tryLockLandscape() { try { if (screen.orientation && screen.orientation.lock) await screen.orientation.lock('landscape'); } catch (e) {} }
+    rotateBtn.addEventListener('click', tryLockLandscape);
+
+    function refreshMetrics() {
+      const stageRect = stage.getBoundingClientRect();
+      const waterWrapRect = waterWrapEl.getBoundingClientRect();
+      const fabricRect = fabric.getBoundingClientRect();
+      const balloonRect = balloon.getBoundingClientRect();
+      const balloonBodyRect = balloonBodyEl.getBoundingClientRect();
+
+      metrics.stageWidth = stageRect.width;
+      metrics.stageHeight = stageRect.height;
+      metrics.stageScale = clamp(Math.min(stageRect.width / 1000, stageRect.height / 620), 0.72, 1.08);
+      metrics.waterWrapLeft = waterWrapRect.left - stageRect.left;
+      metrics.waterWrapCenterX = metrics.waterWrapLeft + waterWrapRect.width / 2;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      waterMoleculeCanvas.width = Math.round(waterWrapRect.width * dpr);
+      waterMoleculeCanvas.height = Math.round(waterWrapRect.height * dpr);
+      waterMoleculeCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      metrics.fabricRect = {
+        left: fabricRect.left - stageRect.left, right: fabricRect.right - stageRect.left,
+        top: fabricRect.top - stageRect.top, bottom: fabricRect.bottom - stageRect.top
+      };
+      metrics.balloonWidth = balloonRect.width;
+      metrics.balloonHeight = balloonRect.height;
+      metrics.balloonBodyWidth = balloonBodyRect.width;
+      metrics.balloonBodyHeight = balloonBodyRect.height;
+      updateBalloonGeometry();
+    }
+
+    function updateBalloonGeometry() {
+      simState.balloonCenterX = simState.balloonX + metrics.balloonWidth / 2;
+      simState.balloonCenterY = simState.balloonY + metrics.balloonHeight / 2;
+      simState.bodyLeft = simState.balloonX + 10;
+      simState.bodyTop = simState.balloonY;
+      simState.bodyCenterX = simState.bodyLeft + metrics.balloonBodyWidth / 2;
+      simState.bodyCenterY = simState.bodyTop + metrics.balloonBodyHeight / 2;
+    }
+
+    function applyBalloonPosition() {
+      balloon.style.left = simState.balloonX + 'px';
+      balloon.style.top = simState.balloonY + 'px';
+      updateBalloonGeometry();
+    }
+
+    function pickSpawnLane(simTime) {
+      const available = laneState.map((lane, index) => ({ index, ready: simTime - lane.lastSpawnTime >= laneCooldownMs })).filter((lane) => lane.ready);
+      const chosen = available.length > 0
+        ? available[Math.floor(Math.random() * available.length)].index
+        : laneState.reduce((bestIndex, lane, index, arr) => lane.lastSpawnTime < arr[bestIndex].lastSpawnTime ? index : bestIndex, 0);
+      laneState[chosen].lastSpawnTime = simTime;
+      return chosen;
+    }
+
+    function getWaterBendState() {
+      const dx = simState.balloonCenterX - metrics.waterWrapCenterX;
+      const dy = Math.abs(simState.balloonCenterY - 250);
+      const chargeFactor = chargeState.value / chargeState.max;
+      const horizontalRange = 280 * metrics.stageScale;
+      const verticalRange = 340 * metrics.stageScale;
+      const horizontalInfluence = clamp(1 - Math.abs(dx) / horizontalRange, 0, 1);
+      const verticalInfluence = clamp(1 - dy / verticalRange, 0, 1);
+      const attraction = chargeFactor * horizontalInfluence * verticalInfluence;
+      const direction = dx < 0 ? -1 : 1;
+      const bend = Math.round(100 * attraction * direction);
+      return { streamCenterX: metrics.waterWrapCenterX, upperBend: bend * 0.08, midBend: bend * 0.28, lowerBend: bend * 0.72, bottomBend: bend * 1.1 };
+    }
+
+    function getWaterCenterAtY(y, bendState = simState.bendState || getWaterBendState()) {
+      const t = y / 560;
+      return bendState.streamCenterX
+        + bendState.upperBend * (1 - t) * (1 - t) * 0.25
+        + bendState.midBend * 2 * (1 - t) * t * 0.55
+        + bendState.lowerBend * t * t * 0.75
+        + bendState.bottomBend * t * t * t * 0.2;
+    }
+
+    function getBalloonAttractionForPoint(x, y) {
+      const chargeFactor = chargeState.value / chargeState.max;
+      if (chargeFactor <= 0) return { influence: 0, angleDeg: 0 };
+      const dx = simState.bodyCenterX - x;
+      const dy = simState.bodyCenterY - y;
+      const distance = Math.hypot(dx, dy);
+      const distanceRange = 360 * metrics.stageScale;
+      const influence = chargeFactor * clamp(1 - distance / distanceRange, 0, 1) ** 0.7;
+      const angleDeg = Math.atan2(dy, dx) * 180 / Math.PI;
+      return { influence, angleDeg };
+    }
+
+    function createParticleEl(className, x, y, parent) {
+      const el = document.createElement('div');
+      el.className = className;
+      el.style.left = `${x}px`;
+      el.style.top = `${y}px`;
+      parent.appendChild(el);
+      return el;
+    }
+
+    function initProtons() {
+      const protonPositions = [{x:44,y:86},{x:82,y:72},{x:120,y:88},{x:160,y:76},{x:56,y:126},{x:96,y:118},{x:138,y:130},{x:176,y:120},{x:74,y:160},{x:116,y:154},{x:154,y:166}];
+      const frag = document.createDocumentFragment();
+      protonPositions.forEach((proton) => {
+        const el = document.createElement('div');
+        el.className = 'proton';
+        el.style.left = `${proton.x}px`;
+        el.style.top = `${proton.y}px`;
+        frag.appendChild(el);
+      });
+      protonLayer.appendChild(frag);
+    }
+
+    function initBalloonFixedParticles() {
+      const fixedProtons = [{x:42,y:42},{x:78,y:58},{x:62,y:98}];
+      const fixedElectrons = [{x:88,y:36},{x:40,y:82},{x:84,y:108}];
+      const frag = document.createDocumentFragment();
+
+      fixedProtons.forEach((p) => {
+        const el = document.createElement('div');
+        el.className = 'proton fixed-proton';
+        el.style.left = `${p.x}px`;
+        el.style.top = `${p.y}px`;
+        frag.appendChild(el);
+      });
+
+      fixedElectrons.forEach((e) => {
+        const el = document.createElement('div');
+        el.className = 'electron fixed-electron';
+        el.style.left = `${e.x}px`;
+        el.style.top = `${e.y}px`;
+        el.style.opacity = '1';
+        frag.appendChild(el);
+      });
+
+      balloonFixedLayer.appendChild(frag);
+    }
+
+    function initFabricElectrons() {
+      fabricChargeState.electrons = fabricChargeState.slots.map((slot) => ({ ...slot }));
+      renderFabricElectrons(true);
+    }
+
+    function renderFabricElectrons(force = false) {
+      const count = fabricChargeState.electrons.length;
+      if (!force && count === fabricChargeState.lastRenderedCount) return;
+      fabricChargeState.lastRenderedCount = count;
+      fabricElectronLayer.innerHTML = '';
+      const frag = document.createDocumentFragment();
+      fabricChargeState.electrons.forEach((electron) => {
+        const el = document.createElement('div');
+        el.className = 'electron';
+        el.style.left = `${electron.x}px`;
+        el.style.top = `${electron.y}px`;
+        el.style.opacity = '1';
+        frag.appendChild(el);
+      });
+      fabricElectronLayer.appendChild(frag);
+    }
+
+    function respawnFabricElectron() {
+      if (fabricChargeState.electrons.length >= fabricChargeState.slots.length) return;
+      const used = new Set(fabricChargeState.electrons.map((e) => `${e.x}-${e.y}`));
+      const free = fabricChargeState.slots.filter((slot) => !used.has(`${slot.x}-${slot.y}`));
+      if (free.length === 0) return;
+      const slot = free[Math.floor(Math.random() * free.length)];
+      fabricChargeState.electrons.push({ ...slot });
+      renderFabricElectrons();
+    }
+
+    function initWaterMolecules() {
+      drawWaterMolecules();
+    }
+
+    function drawSingleWaterMolecule(ctx, x, y, rotationDeg, alpha) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(rotationDeg * Math.PI / 180);
+      ctx.globalAlpha = alpha;
+
+      // Sauerstoff
+      ctx.beginPath();
+      ctx.fillStyle = '#e14b4b';
+      ctx.arc(0, 0, 5.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Wasserstoffatome in gewinkelter Geometrie
+      ctx.beginPath();
+      ctx.fillStyle = '#ffffff';
+      ctx.arc(-8, 7, 3.5, 0, Math.PI * 2);
+      ctx.arc(8, 7, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    function drawWaterMolecules() {
+      const ctx = waterMoleculeCtx;
+      const width = waterMoleculeCanvas.clientWidth;
+      const height = waterMoleculeCanvas.clientHeight;
+      ctx.clearRect(0, 0, width, height);
+
+      waterMolecules.forEach((molecule, index) => {
+        const alpha = 0.58 + ((index % 4) * 0.09);
+        drawSingleWaterMolecule(ctx, molecule.drawX || 0, molecule.drawY || 0, molecule.drawRotation || 0, alpha);
+      });
+    }
+
+    function updateWaterMolecules(deltaMs = 16, simTime = 0) {
+      const wrapLeft = metrics.waterWrapLeft;
+      const bendState = simState.bendState;
+      const streamHalfWidth = 30;
+      const balloonCenterX = simState.bodyCenterX;
+      const balloonCenterY = simState.bodyCenterY;
+
+      waterMolecules.forEach((molecule, index) => {
+        molecule.progress += molecule.speed * deltaMs;
+        if (molecule.progress > 1) {
+          molecule.progress = 0;
+          molecule.lane = pickSpawnLane(simTime + index * 3);
+          molecule.rotation = -180 + Math.random() * 360;
+          molecule.freeRotation = molecule.rotation;
+          molecule.freeRotationSpeed = (Math.random() < 0.5 ? -1 : 1) * (0.012 + Math.random() * 0.028);
+          molecule.polarRotation = molecule.rotation;
+          molecule.aligned = false;
+          molecule.lastInfluence = 0;
+        }
+
+        const y = molecule.progress * 560;
+        const stageCenterX = getWaterCenterAtY(y, bendState);
+        const centerX = stageCenterX - wrapLeft;
+        const attraction = getBalloonAttractionForPoint(stageCenterX, y);
+        const laneOffset = laneOffsets[molecule.lane];
+        const lanePull = attraction.influence * 16 * (balloonCenterX < stageCenterX ? -1 : 1);
+        const x = clamp(centerX + laneOffset + lanePull, centerX - streamHalfWidth, centerX + streamHalfWidth);
+
+        molecule.freeRotation += molecule.freeRotationSpeed * deltaMs;
+
+        if (attraction.influence > 0.04) {
+          const vx = balloonCenterX - stageCenterX;
+          const vy = balloonCenterY - y;
+          const targetPolarRotation = Math.atan2(vy, vx) * 180 / Math.PI - 90;
+          if (!molecule.aligned) molecule.polarRotation = molecule.freeRotation;
+          let diff = targetPolarRotation - molecule.polarRotation;
+          diff = ((diff + 540) % 360) - 180;
+          molecule.polarRotation += diff * Math.min(0.62 + attraction.influence * 0.95, 1.0);
+          molecule.aligned = true;
+        } else if (molecule.aligned && molecule.lastInfluence > 0.04) {
+          molecule.freeRotation = molecule.polarRotation;
+          molecule.freeRotationSpeed = (Math.random() < 0.5 ? -1 : 1) * (0.012 + Math.random() * 0.028);
+          molecule.aligned = false;
+        }
+
+        molecule.lastInfluence = attraction.influence;
+        const finalRotation = molecule.aligned ? molecule.polarRotation : molecule.freeRotation;
+
+        molecule.drawX = x;
+        molecule.drawY = y;
+        molecule.drawRotation = finalRotation;
+      });
+
+      drawWaterMolecules();
+    }
+
+    function syncElectronsToCharge() {
+      const targetCount = Math.round(chargeState.value / 10);
+      while (chargeState.electrons.length < targetCount) {
+        chargeState.electrons.push({ x: 24 + Math.random() * 92, y: 18 + Math.random() * 108 });
+      }
+      while (chargeState.electrons.length > targetCount) {
+        chargeState.electrons.pop();
+      }
+    }
+
+    function renderElectrons() {
+      const bucket = Math.round(chargeState.value / 10);
+      if (bucket === chargeState.lastRenderedBucket) return;
+      chargeState.lastRenderedBucket = bucket;
+      electronLayer.innerHTML = '';
+      const frag = document.createDocumentFragment();
+      chargeState.electrons.forEach((electron) => {
+        const el = document.createElement('div');
+        el.className = 'electron';
+        el.style.left = `${electron.x}px`;
+        el.style.top = `${electron.y}px`;
+        el.style.opacity = '1';
+        frag.appendChild(el);
+      });
+      electronLayer.appendChild(frag);
+    }
+
+    function emitElectronTransfer() {
+      if (fabricChargeState.electrons.length === 0) return false;
+      const fabricElectron = fabricChargeState.electrons.pop();
+      renderFabricElectrons();
+
+      if (mobileMode) return true;
+
+      const startX = metrics.fabricRect.left + fabricElectron.x;
+      const startY = metrics.fabricRect.top + fabricElectron.y;
+      const endX = simState.bodyLeft + 24 + Math.random() * 72;
+      const endY = simState.bodyTop + 18 + Math.random() * 94;
+
+      const el = document.createElement('div');
+      el.className = 'electron-transfer';
+      el.style.left = `${startX}px`;
+      el.style.top = `${startY}px`;
+      el.style.setProperty('--dx', `${endX - startX}px`);
+      el.style.setProperty('--dy', `${endY - startY}px`);
+      stage.appendChild(el);
+      el.addEventListener('animationend', () => el.remove(), { once: true });
+      return true;
+    }
+
+    function emitElectronToAir() {
+      if (mobileMode) { respawnFabricElectron(); return; }
+
+      const startX = simState.bodyLeft + 20 + Math.random() * 80;
+      const startY = simState.bodyTop + 18 + Math.random() * 96;
+      const driftX = -18 + Math.random() * 36;
+      const driftY = -60 - Math.random() * 70;
+
+      const el = document.createElement('div');
+      el.className = 'electron-air';
+      el.style.left = `${startX}px`;
+      el.style.top = `${startY}px`;
+      el.style.setProperty('--dx', `${driftX}px`);
+      el.style.setProperty('--dy', `${driftY}px`);
+      stage.appendChild(el);
+      el.addEventListener('animationend', () => { el.remove(); respawnFabricElectron(); }, { once: true });
+    }
+
+    function moveBalloon(x, y) {
+      simState.balloonX = clamp(x, 0, metrics.stageWidth - metrics.balloonWidth);
+      simState.balloonY = clamp(y, 0, metrics.stageHeight - metrics.balloonHeight);
+      applyBalloonPosition();
+    }
+
+    function updateChargeUI(force = false) {
+      const roundedValue = Math.round(chargeState.value);
+      if (!force && roundedValue === chargeState.lastRenderedValue) return;
+      chargeState.lastRenderedValue = roundedValue;
+
+      const percent = (chargeState.value / chargeState.max) * 100;
+      chargeFill.style.width = percent + '%';
+
+      let label = 'noch nicht aufgeladen';
+      if (chargeState.value >= 100) label = 'maximal aufgeladen';
+      else if (chargeState.value >= 70) label = 'stark aufgeladen';
+      else if (chargeState.value >= 35) label = 'spürbar aufgeladen';
+      else if (chargeState.value > 0) label = 'leicht aufgeladen';
+
+      chargeText.textContent = `${roundedValue} / 100 – ${label}`;
+
+      const glow = 0.12 + percent / 220;
+      const scale = 1 + percent / 6000;
+      balloonBodyEl.style.filter = `drop-shadow(0 18px 28px rgba(185, 31, 70, 0.22)) drop-shadow(0 0 ${8 + percent / 6}px rgba(122, 92, 255, ${glow}))`;
+      balloonBodyEl.style.transform = `scale(${scale})`;
+
+      syncElectronsToCharge();
+      renderElectrons();
+    }
+
+    function isBalloonOverFabric() {
+      const bLeft = simState.balloonX, bRight = simState.balloonX + metrics.balloonWidth;
+      const bTop = simState.balloonY, bBottom = simState.balloonY + metrics.balloonHeight;
+      const f = metrics.fabricRect;
+      return !(bRight < f.left || bLeft > f.right || bBottom < f.top || bTop > f.bottom);
+    }
+
+    function addChargeFromRubbing(deltaX) {
+      if (!drag.rubbing) return;
+      const gain = Math.min(Math.abs(deltaX) * 0.22, 2.2);
+      const before = chargeState.value;
+      let nextValue = clamp(before + gain, 0, chargeState.max);
+
+      const beforeBucket = Math.floor(before / 10);
+      const afterBucket = Math.floor(nextValue / 10);
+      if (afterBucket > beforeBucket) {
+        const moved = emitElectronTransfer();
+        if (!moved) nextValue = before;
+      }
+
+      chargeState.value = nextValue;
+      updateChargeUI();
+      updateWaterCurve();
+    }
+
+    function animateElectronsIntoWater() {
+      const count = Math.max(1, chargeState.electrons.length);
+      const bendState = simState.bendState;
+
+      if (mobileMode) { for (let i = 0; i < count; i += 1) respawnFabricElectron(); return; }
+
+      for (let i = 0; i < count; i += 1) {
+        const startX = simState.bodyLeft + 20 + Math.random() * 80;
+        const startY = simState.bodyTop + 18 + Math.random() * 96;
+        const particle = document.createElement('div');
+        particle.className = 'water-electron';
+        stage.appendChild(particle);
+
+        const entryY = 120 + Math.random() * 180;
+        const entryX = getWaterCenterAtY(entryY, bendState);
+        const startDelay = i * 55;
+        const duration = 620 + i * 18;
+        const targetY = 560;
+
+        function step(ts) {
+          if (!particle._start) particle._start = ts + startDelay;
+          const local = ts - particle._start;
+          if (local < 0) { requestAnimationFrame(step); return; }
+
+          const p = Math.min(local / duration, 1);
+          let x, y, opacity;
+          if (p < 0.26) {
+            const q = p / 0.26;
+            x = startX + (entryX - startX) * q;
+            y = startY + (entryY - startY) * q;
+            opacity = q;
+          } else {
+            const q = (p - 0.26) / 0.74;
+            y = entryY + (targetY - entryY) * q;
+            x = getWaterCenterAtY(y, bendState);
+            opacity = 1 - q * 0.15;
+          }
+
+          particle.style.left = `${x}px`;
+          particle.style.top = `${y}px`;
+          particle.style.opacity = `${opacity}`;
+
+          if (p < 1) requestAnimationFrame(step);
+          else { particle.remove(); respawnFabricElectron(); }
+        }
+        requestAnimationFrame(step);
+      }
+    }
+
+    function dischargeBalloon() {
+      animateElectronsIntoWater();
+      chargeState.value = 0;
+      chargeState.electrons = [];
+      chargeState.lastRenderedBucket = -1;
+      updateChargeUI(true);
+    }
+
+    function doesWaterTouchBalloon() {
+      const ellipse = { cx: simState.bodyCenterX, cy: simState.bodyCenterY, rx: metrics.balloonBodyWidth * 0.34, ry: metrics.balloonBodyHeight * 0.40 };
+      const bendState = simState.bendState;
+      const sampleStart = Math.max(0, ellipse.cy - ellipse.ry);
+      const sampleEnd = Math.min(560, ellipse.cy + ellipse.ry);
+      const streamHalfWidth = 19.2;
+      const safetyGap = 1.5;
+
+      for (let y = sampleStart; y <= sampleEnd; y += 6) {
+        const centerX = getWaterCenterAtY(y, bendState);
+        const normalizedY = (y - ellipse.cy) / ellipse.ry;
+        if (Math.abs(normalizedY) > 1) continue;
+
+        const ellipseHalfWidth = ellipse.rx * Math.sqrt(1 - normalizedY * normalizedY);
+        const innerLeft = ellipse.cx - ellipseHalfWidth + safetyGap;
+        const innerRight = ellipse.cx + ellipseHalfWidth - safetyGap;
+        const streamLeft = centerX - streamHalfWidth;
+        const streamRight = centerX + streamHalfWidth;
+        if (streamRight >= innerLeft && streamLeft <= innerRight) return true;
+      }
+      return false;
+    }
+
+    balloon.addEventListener('pointerdown', (event) => {
+      drag.active = true;
+      drag.pointerId = event.pointerId;
+      drag.offsetX = event.clientX - simState.balloonX;
+      drag.offsetY = event.clientY - simState.balloonY;
+      drag.lastX = event.clientX;
+      drag.rubbing = false;
+      balloon.classList.add('dragging');
+      balloon.setPointerCapture(event.pointerId);
+    });
+
+    balloon.addEventListener('pointermove', (event) => {
+      if (!drag.active || event.pointerId !== drag.pointerId) return;
+      moveBalloon(event.clientX - drag.offsetX, event.clientY - drag.offsetY);
+
+      const deltaX = event.clientX - drag.lastX;
+      drag.lastX = event.clientX;
+      drag.rubbing = isBalloonOverFabric();
+      addChargeFromRubbing(deltaX);
+      updateWaterCurve();
+
+      if (chargeState.value > 0 && doesWaterTouchBalloon()) {
+        dischargeBalloon();
+        updateWaterCurve();
+      }
+    });
+
+    function endDrag(event) {
+      if (event.pointerId !== drag.pointerId) return;
+      drag.active = false;
+      drag.pointerId = null;
+      drag.lastX = null;
+      drag.rubbing = false;
+      balloon.classList.remove('dragging');
+      if (balloon.hasPointerCapture(event.pointerId)) balloon.releasePointerCapture(event.pointerId);
+    }
+
+    balloon.addEventListener('pointerup', endDrag);
+    balloon.addEventListener('pointercancel', endDrag);
+
+    function updateWaterCurve() {
+      simState.bendState = getWaterBendState();
+      const { upperBend, midBend, lowerBend, bottomBend } = simState.bendState;
+
+      const topLeftX = 48, topRightX = 120;
+      const c1LeftX = 48 + upperBend, c1RightX = 120 + upperBend;
+      const c2LeftX = 48 + midBend, c2RightX = 120 + midBend;
+      const c3LeftX = 54 + lowerBend, c3RightX = 114 + lowerBend;
+      const bottomLeftX = 54 + bottomBend, bottomRightX = 114 + bottomBend;
+      const c1y = 120, c2y = 250, c3y = 430, endY = 560;
+
+      waterPath.setAttribute('d', `M ${topLeftX} 0 C ${c1LeftX} ${c1y}, ${c2LeftX} ${c2y}, ${c3LeftX} ${c3y} L ${bottomLeftX} ${endY} L ${bottomRightX} ${endY} L ${c3RightX} ${c3y} C ${c2RightX} ${c2y}, ${c1RightX} ${c1y}, ${topRightX} 0 Z`);
+    }
+
+    window.addEventListener('resize', () => {
+      refreshMetrics();
+      moveBalloon(simState.balloonX, simState.balloonY);
+      updateWaterCurve();
+      updateChargeUI(true);
+      checkOrientation();
+    });
+
+    let lastFrameTime = performance.now(), simulationTime = 0, collisionFrameCounter = 0;
+
+    function monitorDischarge(now) {
+      if (checkOrientation()) { lastFrameTime = now; requestAnimationFrame(monitorDischarge); return; }
+
+      const elapsed = now - lastFrameTime;
+      if (elapsed < frameIntervalMs) { requestAnimationFrame(monitorDischarge); return; }
+
+      const deltaMs = Math.min(elapsed, 32);
+      lastFrameTime = now;
+      simulationTime += deltaMs;
+      collisionFrameCounter += 1;
+
+      if (!drag.rubbing && chargeState.value > 0) {
+        const beforeValue = chargeState.value;
+        const beforeCount = Math.round(beforeValue / 10);
+        chargeState.value = Math.max(0, chargeState.value - chargeDecayPerMs * deltaMs);
+        const afterCount = Math.round(chargeState.value / 10);
+        if (afterCount < beforeCount) {
+          for (let i = 0; i < beforeCount - afterCount; i += 1) emitElectronToAir();
+        }
+        updateChargeUI();
+        updateWaterCurve();
+      }
+
+      if (chargeState.value > 0 && collisionFrameCounter % collisionCheckStride === 0 && doesWaterTouchBalloon()) {
+        dischargeBalloon();
+        updateWaterCurve();
+      }
+
+      updateWaterMolecules(deltaMs || 16, simulationTime);
+      requestAnimationFrame(monitorDischarge);
+    }
+
+    refreshMetrics();
+    applyBalloonPosition();
+    updateWaterCurve();
+    updateChargeUI(true);
+    initProtons();
+    initBalloonFixedParticles();
+    initFabricElectrons();
+    initWaterMolecules();
+    updateWaterMolecules(16, simulationTime);
+    checkOrientation();
+    requestAnimationFrame(monitorDischarge);
+  </script>
+</body>
+</html>
