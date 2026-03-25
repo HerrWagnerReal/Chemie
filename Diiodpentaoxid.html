@@ -1,0 +1,1514 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Endoenergetische Reaktion mit Reaktionsdiagramm</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(to bottom, #eef2f7, #dbe4ee);
+      font-family: Arial, Helvetica, sans-serif;
+      padding: 18px;
+    }
+    .layout {
+      display: flex;
+      gap: 20px;
+      align-items: stretch;
+      justify-content: center;
+      flex-wrap: wrap;
+      width: min(1280px, 100%);
+    }
+    .scene {
+      position: relative;
+      width: min(92vw, 520px);
+      height: min(78vh, 520px);
+      overflow: hidden;
+      touch-action: none;
+      user-select: none;
+      flex: 0 0 auto;
+    }
+    .diagram-panel {
+      position: relative;
+      width: min(92vw, 420px);
+      min-height: 520px;
+      background: rgba(255,255,255,0.82);
+      border-radius: 18px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.10);
+      padding: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .diagram-panel svg { width: 100%; height: auto; display: block; }
+    .bench {
+      position: absolute;
+      left: 0; right: 0; bottom: 0;
+      height: 110px;
+      background: linear-gradient(to bottom, #b08968, #7f5539);
+      border-radius: 16px 16px 0 0;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.12);
+    }
+    .tube-assembly {
+      position: absolute;
+      left: 90px;
+        bottom: 70px;
+      width: 62px;
+      height: 184px;
+      z-index: 4;
+      cursor: grab;
+      touch-action: none;
+      user-select: none;
+    }
+    .tube-assembly.dragging {
+      cursor: grabbing;
+    }
+    .test-tube {
+      position: absolute;
+      left: 4px;
+      bottom: 0;
+      width: 54px;
+      height: 170px;
+      border-radius: 18px 18px 20px 20px / 8px 8px 28px 28px;
+      background: linear-gradient(to right,
+        rgba(255,255,255,0.50) 0%,
+        rgba(255,255,255,0.16) 10%,
+        rgba(210,230,245,0.22) 48%,
+        rgba(255,255,255,0.42) 78%,
+        rgba(255,255,255,0.22) 100%);
+      border: 3px solid rgba(152, 173, 194, 0.95);
+      box-shadow: inset -8px 0 12px rgba(255,255,255,0.28), inset 8px 0 10px rgba(128, 156, 184, 0.12);
+      overflow: hidden;
+    }
+    
+    
+.tube-rim {
+  position: absolute;
+  left: 0;
+  bottom: 162px;
+  width: 62px;
+  height: 16px;
+  border-radius: 50%;
+  background: linear-gradient(to bottom, #e6f0f8, #b8ccdc);
+  border: 2px solid rgba(137, 159, 180, 0.9);
+}
+
+    .tube-highlight {
+      position: absolute;
+      left: 8px;
+      top: 16px;
+      width: 11px;
+      height: 120px;
+      border-radius: 999px;
+      background: linear-gradient(to bottom, rgba(255,255,255,0.9), rgba(255,255,255,0.05));
+      opacity: 0.88;
+    }
+    .powder {
+      position: absolute;
+      left: 8px;
+      right: 8px;
+      bottom: 10px;
+      height: 26px;
+      pointer-events: none;
+    }
+    .iodine-crystal {
+      position: absolute;
+      width: 7px;
+      height: 7px;
+      background: linear-gradient(to bottom right, #ffffff, #f3f3f3 52%, #dddddd 100%);
+      border: 1px solid rgba(220,220,220,0.95);
+      clip-path: polygon(50% 0%, 100% 38%, 78% 100%, 22% 100%, 0% 38%);
+      box-shadow: 0 0 0.5px rgba(255,255,255,0.9), 0 0.8px 1.6px rgba(0,0,0,0.12);
+      transform-origin: center center;
+    }
+    .powder-glow {
+      position: absolute;
+      inset: auto 8px 7px 8px;
+      height: 34px;
+      border-radius: 50%;
+      background: radial-gradient(circle at center, rgba(255, 224, 130, 0.50), rgba(255, 200, 80, 0.10) 55%, rgba(255, 180, 50, 0) 72%);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.18s linear;
+    }
+
+    .iodine-deposit-layer {
+      position:absolute;
+      left:0;
+      top:0;
+      width:100%;
+      height:100%;
+      pointer-events:none;
+    }
+    .iodine-deposit {
+      position:absolute;
+      width:3px;
+      height:6px;
+      background: linear-gradient(to bottom, #4c1d95, #7e22ce 55%, #c084fc 100%);
+      border-radius: 1px;
+      opacity: 0.95;
+      box-shadow: 0 0 2px rgba(107,33,168,0.45);
+      transform-origin: center center;
+      clip-path: polygon(50% 0%, 85% 18%, 100% 50%, 80% 100%, 20% 100%, 0% 50%, 15% 18%);
+    }
+    .vapor-layer {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      overflow: visible;
+    }
+    .scene-vapor-layer {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      overflow: visible;
+      z-index: 6;
+    }
+    .iodine-vapor {
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background:
+        radial-gradient(circle at 30% 30%, rgba(255, 235, 255, 0.98) 0%, rgba(232, 170, 255, 0.92) 18%, rgba(180, 70, 235, 0.82) 48%, rgba(110, 30, 165, 0.45) 72%, rgba(110, 30, 165, 0) 100%);
+      mix-blend-mode: screen;
+      opacity: 0;
+      transform: translate(-50%, -50%);
+      filter: blur(0.9px);
+    }
+
+    .burner {
+      position: absolute;
+      left: 50%;
+      bottom: 110px;
+      width: 150px;
+      height: 250px;
+      transform: translateX(-50%);
+      pointer-events: none;
+    }
+    .burner-base {
+      position: absolute;
+      bottom: 0;
+      left: 20px;
+      width: 110px;
+      height: 20px;
+      background: linear-gradient(to bottom, #6b7280, #4b5563);
+      border-radius: 10px;
+      box-shadow: inset 0 1px 2px rgba(255,255,255,0.25);
+    }
+    .burner-tube {
+      position: absolute;
+      bottom: 18px;
+      left: 64px;
+      width: 22px;
+      height: 120px;
+      background: linear-gradient(to right, #9ca3af, #d1d5db, #9ca3af);
+      border-radius: 8px;
+      border: 1px solid #6b7280;
+    }
+    .burner-air-ring {
+      position: absolute;
+      bottom: 52px;
+      left: 54px;
+      width: 42px;
+      height: 14px;
+      background: linear-gradient(to bottom, #6b7280, #4b5563);
+      border-radius: 10px;
+      border: 1px solid #374151;
+    }
+    .flame-outer {
+      position: absolute;
+      bottom: 136px;
+      left: 31px;
+      width: 88px;
+      height: 140px;
+      background: linear-gradient(to top,
+        rgba(80, 180, 255, 0.15) 0%,
+        rgba(60, 150, 255, 0.35) 25%,
+        rgba(40, 120, 255, 0.75) 60%,
+        rgba(20, 90, 220, 0.95) 100%);
+      clip-path: polygon(50% 0%, 55% 20%, 58% 45%, 60% 70%, 56% 90%, 50% 100%, 44% 90%, 40% 70%, 42% 45%, 45% 20%);
+      filter: drop-shadow(0 0 10px rgba(60,140,255,0.5));
+      opacity: 0.9;
+      transform-origin: bottom center;
+      animation: flameFlicker 1.1s ease-in-out infinite;
+    }
+    .flame-inner {
+      position: absolute;
+      bottom: 136px;
+      left: 59px;
+      width: 32px;
+      height: 50px;
+      background: linear-gradient(to top,
+        rgba(220,255,255,0.98) 0%,
+        rgba(150,230,255,0.9) 50%,
+        rgba(80,180,255,0.6) 100%);
+      clip-path: polygon(50% 0%, 56% 30%, 58% 60%, 50% 100%, 42% 60%, 44% 30%);
+      filter: drop-shadow(0 0 8px rgba(120,220,255,0.7));
+      opacity: 0.95;
+      transform-origin: bottom center;
+      animation: flameFlickerInner 0.8s ease-in-out infinite;
+    }
+    .heat-zone {
+      position: absolute;
+      z-index: 3;
+      border-radius: 999px 999px 30px 30px;
+      background: transparent;
+      pointer-events: none;
+    }
+    .reset-btn {
+      position: absolute;
+      z-index: 4;
+      right: 12px;
+      top: 12px;
+      padding: 10px 14px;
+      border: 0;
+      border-radius: 10px;
+      background: #1f2937;
+      color: white;
+      font-size: 14px;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.14);
+    }
+
+    .probe-btn {
+      position: absolute;
+      z-index: 4;
+      right: 12px;
+      top: 58px;
+      padding: 10px 14px;
+      border: 0;
+      border-radius: 10px;
+      background: #374151;
+      color: white;
+      font-size: 14px;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.14);
+    }
+    .glow-splint {
+      position: absolute;
+      width: 20px;
+      height: 182px;
+      z-index: 7;
+      pointer-events: none;
+      opacity: 0;
+    }
+    .glow-stick {
+      position: absolute;
+      left: 7px;
+      top: 0px;
+      width: 6px;
+      height: 154px;
+      border-radius: 4px;
+      background: linear-gradient(to right, #8b5a2b, #b45309, #7c2d12);
+      box-shadow: inset 0 0 1px rgba(255,255,255,0.25);
+      z-index: 8;
+    }
+    .glow-tip {
+      position: absolute;
+      left: 3px;
+      top: 150px;
+      width: 14px;
+      height: 20px;
+      border-radius: 45% 45% 55% 55%;
+      background: radial-gradient(circle at 50% 45%, rgba(255,165,70,0.98) 0%, rgba(214,96,20,0.95) 42%, rgba(110,40,10,0.98) 100%);
+      box-shadow: 0 0 5px rgba(255,120,30,0.28);
+      transition: box-shadow 0.12s linear, filter 0.12s linear, opacity 0.12s linear, transform 0.12s linear;
+      animation: emberFlicker 0.22s ease-in-out infinite alternate;
+      z-index: 9;
+    }
+
+    .probe-flame {
+      position: absolute;
+      left: 50%;
+      top: 116px;
+      width: 44px;
+      height: 38px;
+      opacity: 0;
+      z-index: 10;
+      pointer-events: none;
+      transform: translateX(-50%) scale(0.7, 0.8);
+      transform-origin: 50% 100%;
+      transition: opacity 0.12s linear, filter 0.12s linear, transform 0.12s linear;
+      clip-path: polygon(50% 0%, 62% 18%, 72% 40%, 70% 66%, 58% 86%, 50% 100%, 42% 86%, 30% 66%, 28% 40%, 38% 18%);
+      background: radial-gradient(circle at 50% 72%, rgba(255,244,190,0.96) 0%, rgba(255,188,60,0.94) 34%, rgba(255,112,20,0.86) 64%, rgba(180,50,10,0.18) 100%);
+      filter: drop-shadow(0 0 6px rgba(255,140,30,0.45));
+    }
+    @keyframes emberFlicker {
+      0% { transform: scale(0.96, 0.98); filter: brightness(0.92) saturate(0.95); }
+      100% { transform: scale(1.05, 1.08); filter: brightness(1.18) saturate(1.2); }
+    }
+    @keyframes flameFlicker {
+      0%, 100% { transform: scaleY(1) scaleX(1) translateX(0); }
+      25% { transform: scaleY(1.05) scaleX(0.97) translateX(-1px); }
+      50% { transform: scaleY(0.96) scaleX(1.03) translateX(1px); }
+      75% { transform: scaleY(1.08) scaleX(0.98) translateX(-0.5px); }
+    }
+    @keyframes flameFlickerInner {
+      0%, 100% { transform: scaleY(1) translateX(0); }
+      50% { transform: scaleY(1.08) translateX(1px); }
+    }
+    #reactionMarker { filter: drop-shadow(0 0 6px rgba(239, 68, 68, 0.45)); }
+    .flow-marker {
+      filter: drop-shadow(0 0 4px rgba(239, 68, 68, 0.35));
+    }
+    #heatLevelLine {
+      stroke: #ef4444;
+      stroke-width: 0.7;
+      stroke-dasharray: 2 1.2;
+      opacity: 0.95;
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <div class="scene" id="scene">
+      <button class="reset-btn" id="resetBtn">Neues Diiodpentaoxid einfüllen</button>
+      <button class="probe-btn" id="probeBtn">Glimmspanprobe</button>
+      <div class="glow-splint" id="glowSplint" aria-hidden="true">
+        <div class="glow-tip" id="glowTip"></div>
+        <div class="probe-flame" id="probeFlame"></div>
+        <div class="glow-stick"></div>
+      </div>
+      <div class="bench"></div>
+      <div id="labelContainer" style="
+        position:absolute;
+        left: 98px;
+        bottom: 54px;
+        z-index:5;
+        pointer-events:none;
+      ">
+        <div style="
+          background: rgba(255,255,255,0.96);
+          border:1px solid rgba(180,180,180,0.95);
+          border-radius:8px;
+          padding:6px 10px;
+          font-size:13px;
+          font-weight:bold;
+          box-shadow:0 2px 8px rgba(0,0,0,0.14);
+          white-space:nowrap;
+        ">Diiodpentaoxid</div>
+      </div>
+      <div class="tube-assembly" id="tubeAssembly" aria-label="Bewegliches Reagenzglas mit Diiodpentaoxid">
+        <div class="test-tube" id="testTube" aria-label="Reagenzglas mit Diiodpentaoxid">
+          <div class="tube-highlight"></div>
+          <div class="powder-glow" id="powderGlow"></div>
+          <div class="powder" id="powder"></div>
+          <div class="vapor-layer" id="vaporLayer" aria-hidden="true"></div>
+          <div class="iodine-deposit-layer" id="iodineDepositLayer"></div>
+        </div>
+        
+      <div class="tube-rim"></div>
+      </div>
+      <div class="burner">
+        <div class="burner-base"></div>
+        <div class="burner-tube"></div>
+        <div class="burner-air-ring"></div>
+        <div class="flame-outer" id="flameOuter"></div>
+        <div class="flame-inner" id="flameInner"></div>
+      </div>
+      <div class="heat-zone" id="heatZone" aria-label="Heizzone"></div>
+      <div class="scene-vapor-layer" id="sceneVaporLayer" aria-hidden="true"></div>
+    </div>
+    <div class="diagram-panel" aria-label="Reaktionsdiagramm">
+<svg
+   width="89.072105mm"
+   height="95.304146mm"
+   viewBox="0 0 89.072105 95.304146"
+   version="1.1"
+   id="svg1"
+   inkscape:version="1.4.2 (f4327f4, 2025-05-13)"
+   sodipodi:docname="Energiediagramm_Endoenergetisch.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="mm"
+     inkscape:zoom="1.3772587"
+     inkscape:cx="143.76384"
+     inkscape:cy="236.33904"
+     inkscape:window-width="1920"
+     inkscape:window-height="991"
+     inkscape:window-x="-9"
+     inkscape:window-y="-9"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="g8192" />
+  <defs
+     id="defs1">
+    <marker
+       inkscape:isstock="true"
+       style="overflow:visible"
+       id="marker7330"
+       refX="0"
+       refY="0"
+       orient="auto"
+       inkscape:stockid="Arrow2Lend"
+       inkscape:collect="always">
+      <path
+         transform="matrix(-1.1,0,0,-1.1,-1.1,0)"
+         d="M 8.7185878,4.0337352 -2.2072895,0.01601326 8.7185884,-4.0017078 c -1.7454984,2.3720609 -1.7354408,5.6174519 -6e-7,8.035443 z"
+         style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:0.625;stroke-linejoin:round;stroke-opacity:1"
+         id="path7328" />
+    </marker>
+    <marker
+       inkscape:stockid="Arrow2Lend"
+       orient="auto"
+       refY="0"
+       refX="0"
+       id="marker7462"
+       style="overflow:visible"
+       inkscape:isstock="true">
+      <path
+         id="path7460"
+         style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:0.625;stroke-linejoin:round;stroke-opacity:1"
+         d="M 8.7185878,4.0337352 -2.2072895,0.01601326 8.7185884,-4.0017078 c -1.7454984,2.3720609 -1.7354408,5.6174519 -6e-7,8.035443 z"
+         transform="matrix(-1.1,0,0,-1.1,-1.1,0)" />
+    </marker>
+  </defs>
+  <g
+     inkscape:label="Ebene 1"
+     inkscape:groupmode="layer"
+     id="layer1"
+     transform="translate(-66.947374,-64.878042)">
+    <g
+       id="g8192"
+       transform="matrix(0.90941537,0,0,0.90941537,57.468315,-85.331412)">
+      <path
+         sodipodi:nodetypes="cc"
+         inkscape:connector-curvature="0"
+         id="path7320"
+         d="M 21.126477,252.31871 H 93.490731"
+         style="fill:none;stroke:#000000;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#marker7330)" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#marker7462)"
+         d="M 21.126477,252.31871 V 179.95445"
+         id="path7458"
+         inkscape:connector-curvature="0"
+         sodipodi:nodetypes="cc" />
+      <text
+         id="text7778"
+         y="172.42664"
+         x="14.569984"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:4.23333px;line-height:5.29px;font-family:Arial;-inkscape-font-specification:'Arial Bold';text-align:start;writing-mode:lr-tb;text-orientation:upright;text-anchor:start;opacity:1;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.265;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;paint-order:stroke markers fill"
+         xml:space="preserve"><tspan
+           style="stroke-width:0.265"
+           y="172.42664"
+           x="14.569984"
+           id="tspan7776"
+           sodipodi:role="line">Innere</tspan><tspan
+           id="tspan7780"
+           style="stroke-width:0.265"
+           y="177.71663"
+           x="14.569984"
+           sodipodi:role="line">Energie</tspan></text>
+      <text
+         xml:space="preserve"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:4.23333px;line-height:5.29px;font-family:Arial;-inkscape-font-specification:'Arial Bold';text-align:start;writing-mode:lr-tb;text-orientation:upright;text-anchor:start;opacity:1;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.265;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;paint-order:stroke markers fill"
+         x="82.320412"
+         y="259.36087"
+         id="text7786"><tspan
+           sodipodi:role="line"
+           x="82.320412"
+           y="259.36087"
+           style="stroke-width:0.265"
+           id="tspan7784">Reaktions-</tspan><tspan
+           id="tspan7790"
+           sodipodi:role="line"
+           x="82.320412"
+           y="264.65088"
+           style="stroke-width:0.265">verlauf</tspan></text>
+      <path
+         inkscape:connector-curvature="0"
+         id="path7792"
+         d="M 24.768973,237.76236 H 44.924117"
+         style="fill:none;stroke:#000000;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="M 67.750427,215.56168 H 87.905571"
+         id="path7794"
+         inkscape:connector-curvature="0" />
+      <path
+         sodipodi:nodetypes="cc"
+         inkscape:connector-curvature="0"
+         id="path7796"
+         d="M 44.924117,237.76236 C 51.418868,224.80308 57.868826,172.11865 67.539183,215.3676"
+         style="fill:none;stroke:#000000;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" />
+      <path
+         inkscape:connector-curvature="0"
+         id="path7798"
+         d="M 44.924117,237.76236 H 87.177072"
+         style="fill:none;stroke:#727272;stroke-width:0.2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:1.6, 0.8;stroke-dashoffset:0;stroke-opacity:1" />
+      <path
+         style="fill:none;stroke:#727272;stroke-width:0.2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:1.6, 0.8;stroke-dashoffset:0;stroke-opacity:1"
+         d="M 25.497472,215.56168 H 67.750427"
+         id="path7800"
+         inkscape:connector-curvature="0" />
+      <path
+         style="fill:none;stroke:#727272;stroke-width:0.2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:1.6, 0.8;stroke-dashoffset:0;stroke-opacity:1"
+         d="M 33.996629,198.41897 H 76.249584"
+         id="path7802"
+         inkscape:connector-curvature="0" />
+      <text
+         id="text7806"
+         y="220.73158"
+         x="73.109528"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:3.52778px;line-height:5.29px;font-family:Arial;-inkscape-font-specification:'Arial Bold';text-align:start;writing-mode:lr-tb;text-orientation:upright;text-anchor:start;opacity:1;fill:#000000;fill-opacity:1;stroke:#727272;stroke-width:0.2;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:1.6, 0.8;stroke-dashoffset:0;stroke-opacity:1;paint-order:stroke markers fill"
+         xml:space="preserve"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:Arial;-inkscape-font-specification:Arial;stroke:none;stroke-width:0.2"
+           y="220.73158"
+           x="73.109528"
+           id="tspan7804"
+           sodipodi:role="line">Produkte</tspan></text>
+      <text
+         xml:space="preserve"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:3.52778px;line-height:5.29px;font-family:Arial;-inkscape-font-specification:'Arial Bold';text-align:start;writing-mode:lr-tb;text-orientation:upright;text-anchor:start;opacity:1;fill:#000000;fill-opacity:1;stroke:#727272;stroke-width:0.2;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:1.6, 0.8;stroke-dashoffset:0;stroke-opacity:1;paint-order:stroke markers fill"
+         x="27.804388"
+         y="241.52621"
+         id="text7810"><tspan
+           sodipodi:role="line"
+           id="tspan7808"
+           x="27.804388"
+           y="241.52621"
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:Arial;-inkscape-font-specification:Arial;stroke:none;stroke-width:0.2">Edukte</tspan></text>
+    </g>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:3.20822px;line-height:4.81081px;font-family:Arial;-inkscape-font-specification:Arial;text-align:start;writing-mode:lr-tb;text-orientation:upright;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.181883;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:1.45506, 0.727532;stroke-dashoffset:0;stroke-opacity:1;paint-order:stroke markers fill"
+       x="94.110588"
+       y="91.780235"
+       id="text8337"><tspan
+         sodipodi:role="line"
+         id="tspan8335"
+         x="94.110588"
+         y="91.780235"
+         style="stroke-width:0.181883">Übergangszustand</tspan></text>
+  </g>
+</svg>
+
+    </div>
+  </div>
+
+  <script>
+    const scene = document.getElementById('scene');
+    const flameOuter = document.getElementById('flameOuter');
+    const flameInner = document.getElementById('flameInner');
+    const heatZone = document.getElementById('heatZone');
+    const resetBtn = document.getElementById('resetBtn');
+    const probeBtn = document.getElementById('probeBtn');
+    const glowSplint = document.getElementById('glowSplint');
+    const glowTip = document.getElementById('glowTip');
+    const probeFlame = document.getElementById('probeFlame');
+    const tubeAssembly = document.getElementById('tubeAssembly');
+    const powder = document.getElementById('powder');
+    const powderGlow = document.getElementById('powderGlow');
+    const iodineDepositLayer = document.getElementById('iodineDepositLayer');
+    const crystalParticles = [];
+    const depositParticles = [];
+    const vaporLayer = document.getElementById('vaporLayer');
+    const sceneVaporLayer = document.getElementById('sceneVaporLayer');
+
+    const reactantsPath = document.getElementById('path7792');
+    const curvePath = document.getElementById('path7796');
+
+    function cloneActivePath(source, id) {
+      const clone = source.cloneNode(true);
+      clone.id = id;
+      clone.setAttribute('stroke', '#ef4444');
+      clone.setAttribute('stroke-width', '0.9');
+      clone.setAttribute('stroke-linecap', 'round');
+      clone.setAttribute('stroke-linejoin', 'round');
+      clone.setAttribute('stroke-opacity', '1');
+      source.insertAdjacentElement('afterend', clone);
+      return clone;
+    }
+
+    const reactantsPathActive = cloneActivePath(reactantsPath, 'path7792Active');
+    const curvePathActive = cloneActivePath(curvePath, 'path7796Active');
+
+    const heatGuideLayer = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    heatGuideLayer.setAttribute('id', 'heatGuideLayer');
+    heatGuideLayer.setAttribute('pointer-events', 'none');
+    const heatLevelLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    heatLevelLine.setAttribute('id', 'heatLevelLine');
+    heatGuideLayer.appendChild(heatLevelLine);
+    curvePath.parentNode.appendChild(heatGuideLayer);
+
+    const reactionMarkerLayer = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    reactionMarkerLayer.setAttribute('id', 'reactionMarkerLayer');
+    reactionMarkerLayer.setAttribute('pointer-events', 'none');
+    const reactionMarker = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    reactionMarker.setAttribute('id', 'reactionMarker');
+    reactionMarker.setAttribute('r', '2.9');
+    reactionMarker.setAttribute('fill', '#ef4444');
+    reactionMarker.setAttribute('stroke', '#ffffff');
+    reactionMarker.setAttribute('stroke-width', '0.8');
+    reactionMarkerLayer.appendChild(reactionMarker);
+    curvePath.parentNode.appendChild(reactionMarkerLayer);
+
+    const flowMarkerLayer = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    flowMarkerLayer.setAttribute('id', 'flowMarkerLayer');
+    flowMarkerLayer.setAttribute('pointer-events', 'none');
+    curvePath.parentNode.appendChild(flowMarkerLayer);
+
+    const intersectionMarker = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    intersectionMarker.setAttribute('id', 'intersectionMarker');
+    intersectionMarker.setAttribute('r', '1.9');
+    intersectionMarker.setAttribute('fill', '#ef4444');
+    intersectionMarker.setAttribute('stroke', '#ffffff');
+    intersectionMarker.setAttribute('stroke-width', '0.45');
+    intersectionMarker.style.display = 'none';
+    flowMarkerLayer.appendChild(intersectionMarker);
+
+    let energy = 0;
+    let heating = false;
+    const maxEnergy = 40;
+    const transitionEnergy = 30;
+    let reactionStarted = false;
+    let reactionProgress = 0;
+    let lastTime = performance.now();
+    const vaporParticles = [];
+    let draggingTube = false;
+    let vaporSpawnAccumulator = 0;
+    let remainingCrystals = 0;
+    let previousTubeInnerMetrics = null;
+    let reactionEverOccurred = false;
+    let maxReactedFraction = 0;
+    let probeActive = false;
+    let probePhase = 'idle';
+    let probeTimer = 0;
+    let probeLocksTube = false;
+    let oxygenLevel = 0;
+    let probeOxygenBurn = 0;
+    let accountedReactedFraction = 0;
+    let markerSpawnAccumulator = 0;
+    const flowMarkers = [];
+    let hasTriggeredMainDrop = false;
+    let dragOffsetX = 0;
+    let dragOffsetY = 0;
+
+    function rectToScene(el) {
+      const sceneRect = scene.getBoundingClientRect();
+      const rect = el.getBoundingClientRect();
+      return {
+        x: rect.left - sceneRect.left,
+        y: rect.top - sceneRect.top,
+        width: rect.width,
+        height: rect.height,
+      };
+    }
+
+    function getFlameZone() {
+      const outer = rectToScene(flameOuter);
+      const inner = rectToScene(flameInner);
+      const x = Math.min(outer.x, inner.x);
+      const y = Math.min(outer.y, inner.y);
+      const right = Math.max(outer.x + outer.width, inner.x + inner.width);
+      const bottom = Math.max(outer.y + outer.height, inner.y + inner.height);
+      return { x, y, width: right - x, height: bottom - y };
+    }
+
+    function placeHeatZone() {
+      const zone = getFlameZone();
+      heatZone.style.left = `${zone.x - 10}px`;
+      heatZone.style.top = `${zone.y - 10}px`;
+      heatZone.style.width = `${zone.width + 20}px`;
+      heatZone.style.height = `${zone.height + 20}px`;
+    }
+
+    function getTubeAssemblyBox() {
+      const sceneRect = scene.getBoundingClientRect();
+      const tubeRect = tubeAssembly.getBoundingClientRect();
+      return {
+        left: tubeRect.left - sceneRect.left,
+        top: tubeRect.top - sceneRect.top,
+        right: tubeRect.right - sceneRect.left,
+        bottom: tubeRect.bottom - sceneRect.top,
+        width: tubeRect.width,
+        height: tubeRect.height,
+      };
+    }
+
+    function updateHeatingState() {
+      const flame = getFlameZone();
+      const tubeBox = getTubeAssemblyBox();
+      const powderBottom = tubeBox.bottom - 16;
+      const powderTop = powderBottom - 28;
+      const powderLeft = tubeBox.left + 10;
+      const powderRight = tubeBox.right - 10;
+      const overlapX = Math.max(0, Math.min(powderRight, flame.x + flame.width) - Math.max(powderLeft, flame.x));
+      const overlapY = Math.max(0, Math.min(powderBottom, flame.y + flame.height) - Math.max(powderTop, flame.y));
+      heating = overlapX > 10 && overlapY > 8;
+    }
+
+    function clampTubePosition(leftPx, bottomPx) {
+      const maxLeft = scene.clientWidth - tubeAssembly.offsetWidth;
+      const maxBottom = scene.clientHeight - tubeAssembly.offsetHeight;
+      const minBottom = 110;
+      return {
+        left: Math.min(Math.max(0, leftPx), maxLeft),
+        bottom: Math.min(Math.max(minBottom, bottomPx), maxBottom),
+      };
+    }
+
+    function setTubePosition(leftPx, bottomPx) {
+      const pos = clampTubePosition(leftPx, bottomPx);
+      tubeAssembly.style.left = `${pos.left}px`;
+      tubeAssembly.style.bottom = `${pos.bottom}px`;
+      updateHeatingState();
+    }
+
+    function getPeakLengthOnCurve(path, samples = 600) {
+      const total = path.getTotalLength();
+      let bestLen = 0;
+      let bestY = Infinity;
+      for (let i = 0; i <= samples; i++) {
+        const len = (i / samples) * total;
+        const pt = path.getPointAtLength(len);
+        if (pt.y < bestY) {
+          bestY = pt.y;
+          bestLen = len;
+        }
+      }
+      return bestLen;
+    }
+
+    const reactantsLength = reactantsPath.getTotalLength();
+    const curveLength = curvePath.getTotalLength();
+    const peakLengthOnCurve = getPeakLengthOnCurve(curvePath);
+
+    function initRevealPath(pathEl) {
+      const len = pathEl.getTotalLength();
+      pathEl.style.strokeDasharray = `${len}`;
+      pathEl.style.strokeDashoffset = `${len}`;
+      return len;
+    }
+
+    const reactantsActiveLength = initRevealPath(reactantsPathActive);
+    const curveActiveLength = initRevealPath(curvePathActive);
+
+    function revealPathTo(pathEl, totalLen, visibleLen) {
+      const clamped = Math.max(0, Math.min(totalLen, visibleLen));
+      pathEl.style.strokeDashoffset = `${totalLen - clamped}`;
+    }
+
+    function setSvgMarkerPosition(el, point) {
+      el.setAttribute('cx', point.x);
+      el.setAttribute('cy', point.y);
+    }
+
+    function updateReactionTrail() {
+      revealPathTo(reactantsPathActive, reactantsActiveLength, reactantsActiveLength);
+
+      // Vor Reaktionsbeginn folgt die Markierung der Wärmezufuhr bis zum Übergangszustand.
+      // Danach zeigt der rote Reaktionspfad nur den tatsächlichen Reaktionsfortschritt.
+      let curveVisible = 0;
+      if (!reactionStarted) {
+        const reactionEnergy = Math.min(energy, transitionEnergy);
+        curveVisible = (reactionEnergy / transitionEnergy) * peakLengthOnCurve;
+      } else {
+        curveVisible = reactionProgress * peakLengthOnCurve;
+      }
+      revealPathTo(curvePathActive, curveActiveLength, curveVisible);
+    }
+
+    function setMarkerPosition() {
+      if (!reactionStarted) {
+        // Hauptmarker am Anfang ausblenden → nur ein Marker sichtbar
+        reactionMarker.setAttribute('visibility', 'hidden');
+        return;
+      }
+
+      reactionMarker.setAttribute('visibility', 'hidden');
+
+      let point;
+      if (hasTriggeredMainDrop) {
+        point = getProductsPoint();
+      } else if (energy <= transitionEnergy) {
+        const curveProgress = (Math.max(0, energy) / transitionEnergy) * peakLengthOnCurve;
+        point = curvePath.getPointAtLength(curveProgress);
+      } else {
+        point = curvePath.getPointAtLength(peakLengthOnCurve);
+      }
+      setSvgMarkerPosition(reactionMarker, point);
+    }
+    function getHeatLineY() {
+      const reactantStart = reactantsPath.getPointAtLength(0);
+      const peakPoint = curvePath.getPointAtLength(peakLengthOnCurve);
+      const yBottom = reactantStart.y;
+      const yTransition = peakPoint.y;
+      const yTopExtended = yTransition - 18;
+      const ratio = Math.max(0, Math.min(1, energy / maxEnergy));
+      return yBottom - (yBottom - yTopExtended) * ratio;
+    }
+
+    function getAscendingProgressForHeatLine() {
+      const targetY = getHeatLineY();
+      const samples = 500;
+      let bestLen = 0;
+      let bestDiff = Infinity;
+      for (let i = 0; i <= samples; i++) {
+        const len = (i / samples) * peakLengthOnCurve;
+        const pt = curvePath.getPointAtLength(len);
+        const diff = Math.abs(pt.y - targetY);
+        if (diff < bestDiff) {
+          bestDiff = diff;
+          bestLen = len;
+        }
+      }
+      return bestLen / curveLength;
+    }
+
+    function updateHeatLevelLine() {
+      const reactantStart = reactantsPath.getPointAtLength(0);
+      const reactantEnd = reactantsPath.getPointAtLength(reactantsLength);
+      const peakPoint = curvePath.getPointAtLength(peakLengthOnCurve);
+
+      const y = getHeatLineY();
+
+      const x1 = Math.min(reactantStart.x, peakPoint.x) - 2;
+      const x2 = Math.max(reactantEnd.x, peakPoint.x) + 20;
+
+      heatLevelLine.setAttribute('x1', x1);
+      heatLevelLine.setAttribute('x2', x2);
+      heatLevelLine.setAttribute('y1', y);
+      heatLevelLine.setAttribute('y2', y);
+    }
+
+
+    function ensureVaporParticles() {
+      if (vaporParticles.length) return;
+      for (let i = 0; i < 42; i++) {
+        const el = document.createElement('div');
+        el.className = 'iodine-vapor';
+        sceneVaporLayer.appendChild(el);
+        vaporParticles.push({
+          el,
+          active: false,
+          x: 0,
+          y: 0,
+          vx: 0,
+          vy: 0,
+          life: 0,
+          maxLife: 0,
+          drift: 0,
+          phase: 'inside',
+          fadeStart: 0.65
+        });
+      }
+    }
+
+    function getTubeInnerMetrics() {
+      const tubeBox = getTubeAssemblyBox();
+      return {
+        left: tubeBox.left + 9,
+        right: tubeBox.right - 9,
+        top: tubeBox.top + 12,
+        bottom: tubeBox.bottom - 12,
+        width: tubeBox.width - 18,
+        height: tubeBox.height - 24,
+        openingX: tubeBox.left + tubeBox.width / 2,
+        openingY: tubeBox.top + 10
+      };
+    }
+
+    function createIodineCrystal(x, y) {
+      if (!iodineDepositLayer) return;
+      if (depositParticles.length >= 260) return;
+
+      const clusterSize = 2 + Math.floor(Math.random() * 4);
+
+      for (let i = 0; i < clusterSize; i++) {
+        if (depositParticles.length >= 260) break;
+
+        const el = document.createElement('div');
+        el.className = 'iodine-deposit';
+
+        // Zufällige Verteilung im oberen Bereich des Reagenzglases (nicht mehr am Partikelpunkt)
+        const localX = 6 + Math.random() * 40;   // gesamte Breite oben
+        const localY = 6 + Math.random() * 22;   // oberer Bereich
+
+        const rot = -35 + Math.random() * 70;
+        const scale = 0.7 + Math.random() * 0.8;
+
+        el.style.left = `${localX}px`;
+        el.style.top = `${localY}px`;
+        el.style.transform = `rotate(${rot}deg) scale(${scale})`;
+
+        iodineDepositLayer.appendChild(el);
+        depositParticles.push(el);
+      }
+    }
+
+    function emitVapor(dt) {
+      if (remainingCrystals === 0) return;
+      ensureVaporParticles();
+
+      const inner = getTubeInnerMetrics();
+      const spawnInterval = 0.1; // kürzere, gleichmäßige Abstände
+      vaporSpawnAccumulator += dt;
+
+      while (vaporSpawnAccumulator >= spawnInterval) {
+        vaporSpawnAccumulator -= spawnInterval;
+
+        const particle = vaporParticles.find(p => !p.active);
+        if (!particle) break;
+
+        particle.active = true;
+        particle.phase = 'inside';
+        particle.x = inner.left + inner.width * (0.28 + Math.random() * 0.44);
+        particle.y = inner.bottom - 18 - Math.random() * 10;
+
+        // etwas schneller nach oben, damit keine Lücken entstehen
+        particle.vx = (Math.random() - 0.5) * 5;
+        particle.vy = -(24 + Math.random() * 12);
+
+        particle.life = 0;
+        particle.maxLife = 2.6 + Math.random() * 1.2;
+        particle.drift = (Math.random() - 0.5) * (10 + reactionProgress * 12);
+        particle.fadeStart = 0.58 + Math.random() * 0.1;
+      }
+    }
+
+    function spawnDepositVaporAt(localX, localY) {
+      ensureVaporParticles();
+      const tubeBox = getTubeAssemblyBox();
+      const particle = vaporParticles.find(p => !p.active);
+      if (!particle) return;
+
+      particle.active = true;
+      particle.phase = 'outside';
+      particle.x = tubeBox.left + localX + 3 + (Math.random() - 0.5) * 4;
+      particle.y = tubeBox.top + localY + 3 + (Math.random() - 0.5) * 3;
+      particle.vx = (Math.random() - 0.5) * 10;
+      particle.vy = -(14 + Math.random() * 10);
+      particle.life = 0;
+      particle.maxLife = 1.4 + Math.random() * 0.9;
+      particle.drift = (Math.random() - 0.5) * 10;
+      particle.fadeStart = 0.45 + Math.random() * 0.15;
+    }
+
+    function updateIodineDeposits(dt) {
+      if (!iodineDepositLayer) return;
+
+      const flame = getFlameZone();
+      const tubeBox = getTubeAssemblyBox();
+
+      // Oberer Innenbereich des Reagenzglases, in dem die Iodkristalle sitzen
+      const depositRegion = {
+        left: tubeBox.left + 7,
+        right: tubeBox.right - 7,
+        top: tubeBox.top + 6,
+        bottom: tubeBox.top + 34
+      };
+
+      const overlapsHeat =
+        depositRegion.right > flame.x &&
+        depositRegion.left < flame.x + flame.width &&
+        depositRegion.bottom > flame.y &&
+        depositRegion.top < flame.y + flame.height;
+
+      if (!overlapsHeat) return;
+
+      for (let i = depositParticles.length - 1; i >= 0; i--) {
+        const el = depositParticles[i];
+        const opacity = parseFloat(el.style.opacity || '0.95');
+        const nextOpacity = opacity - dt * 1.1;
+
+        const localX = parseFloat(el.style.left || '0');
+        const localY = parseFloat(el.style.top || '0');
+
+        if (Math.random() < 0.35) {
+          spawnDepositVaporAt(localX, localY);
+        }
+
+        if (nextOpacity <= 0) {
+          el.remove();
+          depositParticles.splice(i, 1);
+        } else {
+          el.style.opacity = `${nextOpacity}`;
+        }
+      }
+    }
+
+    function updateVapor(dt) {
+      ensureVaporParticles();
+      const inner = getTubeInnerMetrics();
+
+      let tubeDx = 0;
+      let tubeDy = 0;
+      if (previousTubeInnerMetrics) {
+        tubeDx = inner.openingX - previousTubeInnerMetrics.openingX;
+        tubeDy = inner.openingY - previousTubeInnerMetrics.openingY;
+      }
+      previousTubeInnerMetrics = { ...inner };
+
+      for (const particle of vaporParticles) {
+        if (!particle.active) {
+          particle.el.style.opacity = '0';
+          continue;
+        }
+
+        particle.life += dt;
+        const t = particle.life / particle.maxLife;
+        if (t >= 1) {
+          particle.active = false;
+          particle.el.style.opacity = '0';
+          continue;
+        }
+
+        if (particle.phase === 'inside') {
+          // Partikel im Glas mit dem Reagenzglas mitführen
+          particle.x += tubeDx;
+          particle.y += tubeDy;
+
+          const towardOpening = (inner.openingX - particle.x) * 0.9;
+          particle.vx += towardOpening * dt;
+          particle.vx += (Math.random() - 0.5) * 5.5 * dt;
+          particle.vy -= (5 + Math.random() * 4) * dt;
+          particle.x += particle.vx * dt;
+          particle.y += particle.vy * dt;
+
+          // Kollision mit den Glaswänden: innerhalb des Reagenzglases halten
+          const wallPadding = 4;
+          const minX = inner.left + wallPadding;
+          const maxX = inner.right - wallPadding;
+          const minY = inner.top + 4;
+          const maxY = inner.bottom - 4;
+
+          if (particle.x < minX) {
+            particle.x = minX;
+            particle.vx = Math.abs(particle.vx) * 0.35;
+          } else if (particle.x > maxX) {
+            particle.x = maxX;
+            particle.vx = -Math.abs(particle.vx) * 0.35;
+          }
+
+          if (particle.y > maxY) {
+            particle.y = maxY;
+            particle.vy = -Math.abs(particle.vy) * 0.15;
+          }
+
+          // Austritt nur an der Öffnung oben
+          const openingHalfWidth = 7;
+          const reachedTop = particle.y <= minY;
+          const withinOpening = Math.abs(particle.x - inner.openingX) <= openingHalfWidth;
+
+          if (reachedTop && withinOpening) {
+            particle.phase = 'outside';
+            if (Math.random() < 0.72) createIodineCrystal(particle.x, particle.y);
+            particle.y = inner.openingY + 4;
+            particle.x = inner.openingX + (Math.random() - 0.5) * 6;
+            particle.vx = particle.drift;
+            particle.vy = -(20 + Math.random() * 12);
+          } else if (reachedTop) {
+            particle.y = minY;
+            particle.vy = Math.abs(particle.vy) * 0.22;
+            particle.vx += (particle.x < inner.openingX ? 8 : -8) * dt;
+          }
+        } else {
+          particle.vx += particle.drift * 0.28 * dt + (Math.random() - 0.5) * 6.5 * dt;
+          particle.vy -= (2.5 + Math.random() * 2.8) * dt;
+          particle.x += particle.vx * dt;
+          particle.y += particle.vy * dt;
+        }
+
+        if (particle.y < -40 || particle.x < -60 || particle.x > scene.clientWidth + 60) {
+          particle.active = false;
+          particle.el.style.opacity = '0';
+          continue;
+        }
+
+        const insideFactor = particle.phase === 'inside' ? 1 : 0;
+        const size = 14 + t * 14 + reactionProgress * 6 + (particle.phase === 'outside' ? 8 : 0);
+        const opacityCore = particle.phase === 'inside'
+          ? (0.42 + reactionProgress * 0.42)
+          : (0.36 + reactionProgress * 0.32);
+        const fade = t < particle.fadeStart ? 1 : Math.max(0, 1 - ((t - particle.fadeStart) / (1 - particle.fadeStart)));
+        const pulse = 0.84 + Math.sin(t * Math.PI * 5.2) * 0.16;
+        particle.el.style.left = `${particle.x}px`;
+        particle.el.style.top = `${particle.y}px`;
+        particle.el.style.width = `${size}px`;
+        particle.el.style.height = `${size * (1.18 - insideFactor * 0.12)}px`;
+        particle.el.style.opacity = `${Math.max(0, opacityCore * fade * pulse)}`;
+      }
+    }
+
+    function ensureCrystalParticles() {
+      if (crystalParticles.length) return;
+      const powderEl = powder;
+      const cols = 6;
+      const rows = 4;
+      const xStep = 5.8;
+      const yStep = 4.6;
+      for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < cols; col++) {
+          const el = document.createElement('div');
+          el.className = 'iodine-crystal';
+          powderEl.appendChild(el);
+          const baseX = 3 + col * xStep + (row % 2) * 2.4 + Math.random() * 0.7;
+          const baseY = 13 - row * yStep + Math.random() * 0.5;
+          const scale = 0.8 + Math.random() * 0.45;
+          const rot = -18 + Math.random() * 36;
+          crystalParticles.push({ el, baseX, baseY, scale, rot, active: true });
+        }
+      }
+    }
+
+    function updatePowderAppearance() {
+      ensureCrystalParticles();
+      const level = energy / maxEnergy;
+      const remainingFraction = reactionStarted ? Math.max(0, 1 - reactionProgress) : 1;
+      const activeCount = Math.max(0, Math.ceil(crystalParticles.length * remainingFraction));
+      const removedCount = crystalParticles.length - activeCount;
+      remainingCrystals = activeCount;
+
+      // Obere Kristalle zuerst entfernen:
+      // Größeres baseY => weiter oben im Reagenzglas.
+      const sortedTopToBottom = [...crystalParticles].sort((a, b) => b.baseY - a.baseY);
+
+      sortedTopToBottom.forEach((c, i) => {
+        const active = i >= removedCount;
+        c.active = active;
+        if (!active) {
+          c.el.style.display = 'none';
+          return;
+        }
+        c.el.style.display = 'block';
+        const settle = level * 0.4;
+        const x = c.baseX;
+        const y = c.baseY + settle;
+        c.el.style.left = `${x}px`;
+        c.el.style.bottom = `${y}px`;
+        c.el.style.transform = `scale(${c.scale}) rotate(${c.rot}deg)`;
+      });
+
+      powder.style.transform = `translateY(-${level * 1.6}px)`;
+      powder.style.filter = `brightness(${1 + level * 0.04})`;
+      if (powderGlow) powderGlow.style.opacity = `${remainingCrystals > 0 ? (0.04 + level * 0.34) : 0}`;
+    }
+
+    
+    function getProductsPoint() {
+      return curvePath.getPointAtLength(curveLength);
+    }
+
+    function createFlowMarker() {
+      const el = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      el.setAttribute('r', '1.9');
+      el.setAttribute('fill', '#ef4444');
+      el.setAttribute('stroke', '#ffffff');
+      el.setAttribute('stroke-width', '0.45');
+      el.setAttribute('class', 'flow-marker');
+      flowMarkerLayer.appendChild(el);
+      flowMarkers.push({ el, progress: 0, active: true, pausedOnHeatLine: false });
+    }
+
+    function spawnFlowMarkers(dt) {
+      if (!(reactionStarted && energy >= transitionEnergy && remainingCrystals > 0 && reactionProgress < 1)) {
+        return;
+      }
+      markerSpawnAccumulator += dt * 3.2;
+      const count = Math.floor(markerSpawnAccumulator);
+      markerSpawnAccumulator -= count;
+      for (let i = 0; i < count; i++) createFlowMarker();
+    }
+
+    function updateFlowMarkers(dt) {
+      const pinnedProgress = getAscendingProgressForHeatLine();
+      const transitionProgress = peakLengthOnCurve / curveLength;
+      const intersectionExists = energy < transitionEnergy && remainingCrystals > 0 && pinnedProgress < transitionProgress - 1e-6;
+
+      let hasMarkerAtIntersection = false;
+
+      for (const marker of flowMarkers) {
+        if (!marker.active) continue;
+
+        const hasCrossedTransition = marker.progress >= transitionProgress - 1e-6;
+
+        if (intersectionExists && !hasCrossedTransition) {
+          // Alle Marker vor dem Übergangszustand stehen exakt an der ersten Schnittstelle.
+          marker.pausedOnHeatLine = true;
+          marker.progress = pinnedProgress;
+          hasMarkerAtIntersection = true;
+        } else {
+          marker.pausedOnHeatLine = false;
+          marker.progress += dt * 0.95;
+        }
+
+        if (marker.progress >= 1) {
+          marker.active = false;
+          marker.el.remove();
+          continue;
+        }
+
+        const p = curvePath.getPointAtLength(marker.progress * curveLength);
+        marker.el.setAttribute('cx', p.x);
+        marker.el.setAttribute('cy', p.y);
+      }
+
+      // Solange sich Wärmelinie und aufsteigender Kurvenast schneiden und noch Stoff vorhanden ist,
+      // muss immer ein Marker an der ersten Schnittstelle sichtbar sein.
+      if (intersectionExists) {
+        const p = curvePath.getPointAtLength(pinnedProgress * curveLength);
+        intersectionMarker.style.display = '';
+        intersectionMarker.setAttribute('cx', p.x);
+        intersectionMarker.setAttribute('cy', p.y);
+
+        if (!hasMarkerAtIntersection) {
+          createFlowMarker();
+          const marker = flowMarkers[flowMarkers.length - 1];
+          marker.progress = pinnedProgress;
+          marker.pausedOnHeatLine = true;
+          marker.el.setAttribute('cx', p.x);
+          marker.el.setAttribute('cy', p.y);
+        }
+      } else {
+        intersectionMarker.style.display = 'none';
+      }
+    }
+
+    function clearFlowMarkers() {
+      for (const marker of flowMarkers) {
+        marker.el.remove();
+      }
+      flowMarkers.length = 0;
+      intersectionMarker.style.display = 'none';
+    }
+
+
+function updateProbeVisual(glowStrength = 0, flameStrength = 0) {
+      if (!glowTip || !glowSplint || !probeFlame) return;
+      const ember = Math.max(0.18, Math.min(1, glowStrength));
+      const flame = Math.max(0, Math.min(1, flameStrength));
+
+      glowTip.style.opacity = `${0.78 + ember * 0.22}`;
+      glowTip.style.filter = `brightness(${0.95 + ember * 0.85}) saturate(${1 + ember * 0.45})`;
+      glowTip.style.boxShadow = `0 0 ${3 + ember * 8}px rgba(255,120,25,${0.18 + ember * 0.3}), 0 0 ${1 + ember * 4}px rgba(255,180,70,${0.12 + ember * 0.22})`;
+
+      // Flammenstärke über Höhe statt Transparenz:
+      // wenig Sauerstoff -> kleine Flamme, viel Sauerstoff -> hohe Flamme
+      const flameScaleX = 1.0 + flame * 0.6;
+      const flameScaleY = 0.18 + flame * 1.55;
+
+      probeFlame.style.opacity = flame > 0 ? '1' : '0';
+      probeFlame.style.transform = `translateX(-50%) scale(${flameScaleX}, ${flameScaleY})`;
+      probeFlame.style.filter = `drop-shadow(0 0 ${4 + flame * 12}px rgba(255,140,30,${0.28 + flame * 0.45}))`;
+    }
+
+    function getProbeTargetPose() {
+      const tubeBox = getTubeAssemblyBox();
+      return {
+        left: tubeBox.left + tubeBox.width / 2 - 10,
+        top: tubeBox.bottom - 226
+      };
+    }
+
+    function startProbe() {
+      if (probeActive) return;
+      probeActive = true;
+      probePhase = 'in';
+      probeTimer = 0;
+      probeOxygenBurn = 0;
+      probeLocksTube = true;
+      glowSplint.style.opacity = '1';
+      updateProbeVisual(0.42, 0);
+    }
+
+    function updateProbe(dt) {
+      if (!probeActive) {
+        if (glowSplint) glowSplint.style.opacity = '0';
+        return;
+      }
+
+      const target = getProbeTargetPose();
+
+      let x, y, emberStrength, flameStrength;
+      if (probePhase === 'in') {
+        probeTimer += dt / 0.75;
+        const t = Math.min(1, probeTimer);
+        x = target.left;
+        y = -190 + (target.top - (-190)) * t;
+        emberStrength = 0.42;
+        flameStrength = probeOxygenBurn * Math.max(0, (t - 0.55) / 0.45);
+        if (t >= 1) {
+          probePhase = 'hold';
+          probeTimer = 0;
+          // Probe verbraucht den gesamten verfügbaren Sauerstoff im Reagenzglas
+          // damit sie nicht direkt erneut positiv ausfallen kann.
+          probeOxygenBurn = oxygenLevel;
+          oxygenLevel = 0;
+        }
+      } else if (probePhase === 'hold') {
+        probeTimer += dt;
+        x = target.left;
+        y = target.top;
+        emberStrength = 0.42;
+        flameStrength = probeOxygenBurn;
+        if (probeTimer >= 1.0) {
+          probePhase = 'out';
+          probeTimer = 0;
+        }
+      } else {
+        probeTimer += dt / 0.8;
+        const t = Math.min(1, probeTimer);
+        x = target.left;
+        y = target.top + (-190 - target.top) * t;
+        emberStrength = 0.42;
+        flameStrength = 0;
+        if (t >= 1) {
+          probeActive = false;
+          probePhase = 'idle';
+          probeLocksTube = false;
+          glowSplint.style.opacity = '0';
+          updateProbeVisual(0.42, 0);
+          return;
+        }
+      }
+
+      glowSplint.style.left = `${x}px`;
+      glowSplint.style.top = `${y}px`;
+      glowSplint.style.transform = `rotate(0deg)`;
+      glowSplint.style.opacity = '1';
+      updateProbeVisual(emberStrength, flameStrength);
+    }
+
+function resetSimulation() {
+      ensureCrystalParticles();
+      energy = 0;
+      reactionStarted = false;
+      vaporSpawnAccumulator = 0;
+      markerSpawnAccumulator = 0;
+      previousTubeInnerMetrics = null;
+      remainingCrystals = crystalParticles.length || 0;
+      reactionProgress = 0;
+      hasTriggeredMainDrop = false;
+      heating = false;
+      reactionEverOccurred = false;
+      maxReactedFraction = 0;
+      oxygenLevel = 0;
+      probeOxygenBurn = 0;
+      accountedReactedFraction = 0;
+      probeActive = false;
+      probePhase = 'idle';
+      probeTimer = 0;
+      probeLocksTube = false;
+      clearFlowMarkers();
+      depositParticles.forEach(el => el.remove());
+      depositParticles.length = 0;
+      updateReactionTrail();
+      setMarkerPosition();
+      updateHeatLevelLine();
+      updatePowderAppearance();
+      updateHeatingState();
+    }
+
+    function animate(now) {
+      const dt = (now - lastTime) / 1000;
+      lastTime = now;
+
+      if (heating) energy = Math.min(maxEnergy, energy + 8 * dt);
+      else energy = Math.max(0, energy - 5.5 * dt);
+
+      if (energy >= transitionEnergy - 0.02) reactionStarted = true;
+
+      const reactionCanProceed = reactionStarted && energy >= transitionEnergy && remainingCrystals > 0;
+
+      if (reactionCanProceed && !hasTriggeredMainDrop) {
+        hasTriggeredMainDrop = true;
+      }
+
+      if (reactionCanProceed && reactionProgress < 1) {
+        reactionProgress = Math.min(1, reactionProgress + 0.14 * dt);
+      }
+
+      if (reactionProgress > 0.001) {
+        reactionEverOccurred = true;
+      }
+
+      const reactedFraction = Math.max(0, Math.min(1, 1 - (remainingCrystals / Math.max(1, crystalParticles.length))));
+      maxReactedFraction = Math.max(maxReactedFraction, reactedFraction);
+
+      // Sauerstoff nur für neu reagierten Stoff hinzufügen.
+      const newlyReacted = Math.max(0, reactedFraction - accountedReactedFraction);
+      if (newlyReacted > 0) {
+        oxygenLevel = Math.min(1, oxygenLevel + newlyReacted);
+        accountedReactedFraction = reactedFraction;
+      }
+
+      if (reactionCanProceed) {
+        emitVapor(dt);
+      }
+
+      spawnFlowMarkers(dt);
+      updateFlowMarkers(dt);
+      updateVapor(dt);
+      updateIodineDeposits(dt);
+      updateProbe(dt);
+      updateReactionTrail();
+      setMarkerPosition();
+      updateHeatLevelLine();
+      updatePowderAppearance();
+
+      requestAnimationFrame(animate);
+    }
+
+    function startTubeDrag(e) {
+      if (probeLocksTube) return;
+      const label = document.getElementById('labelContainer');
+      if (label) label.style.display = 'none';
+      const sceneRect = scene.getBoundingClientRect();
+      const tubeRect = tubeAssembly.getBoundingClientRect();
+      draggingTube = true;
+      tubeAssembly.classList.add('dragging');
+      dragOffsetX = e.clientX - tubeRect.left;
+      dragOffsetY = e.clientY - tubeRect.top;
+      tubeAssembly.setPointerCapture?.(e.pointerId);
+      e.preventDefault();
+    }
+
+    function moveTubeDrag(e) {
+      if (!draggingTube) return;
+      const sceneRect = scene.getBoundingClientRect();
+      const left = e.clientX - sceneRect.left - dragOffsetX;
+      const top = e.clientY - sceneRect.top - dragOffsetY;
+      const bottom = sceneRect.height - top - tubeAssembly.offsetHeight;
+      setTubePosition(left, bottom);
+    }
+
+    function endTubeDrag() {
+      draggingTube = false;
+      tubeAssembly.classList.remove('dragging');
+      updateHeatingState();
+    }
+
+    resetBtn.addEventListener('click', resetSimulation);
+    probeBtn.addEventListener('click', startProbe);
+    tubeAssembly.addEventListener('pointerdown', startTubeDrag);
+    window.addEventListener('pointermove', moveTubeDrag);
+    window.addEventListener('pointerup', endTubeDrag);
+    window.addEventListener('pointercancel', endTubeDrag);
+    window.addEventListener('resize', () => {
+      placeHeatZone();
+      updateHeatingState();
+    });
+
+    placeHeatZone();
+    resetSimulation();
+    updateHeatingState();
+    requestAnimationFrame((t) => { lastTime = t; animate(t); });
+  </script>
+</body>
+</html>
