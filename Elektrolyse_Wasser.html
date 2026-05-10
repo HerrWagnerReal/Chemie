@@ -1,0 +1,3658 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Microscale-Versuch – Wassermoleküle auf Teilchenebene</title>
+<style>
+  * { box-sizing: border-box; }
+
+  body {
+    --water-color: rgba(88, 156, 235, 0.88);
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: #f4f7fb;
+    font-family: Arial, sans-serif;
+  }
+
+
+
+  .scene-viewport {
+    width: 900px;
+    height: 600px;
+    position: relative;
+    overflow: hidden;
+    border-radius: 16px;
+    touch-action: none;
+  }
+
+  .view-controls {
+    position: absolute;
+    left: 16px;
+    top: 16px;
+    z-index: 80;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 1px solid rgba(94, 114, 136, 0.45);
+    border-radius: 12px;
+    background: rgba(255,255,255,0.92);
+    box-shadow: 0 2px 10px rgba(0,0,0,0.10);
+    font-size: 13px;
+    font-weight: 700;
+    color: #23364a;
+  }
+
+  .view-controls input[type="range"] {
+    width: 120px;
+  }
+
+  .view-btn {
+    border: 1px solid #8ea0b5;
+    background: #ffffff;
+    color: #23364a;
+    border-radius: 8px;
+    padding: 4px 8px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .scene {
+    width: 900px;
+    height: 600px;
+    position: relative;
+    background: linear-gradient(to bottom, #ffffff, #eef4fb);
+    border: 1px solid #cfd8e3;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+    user-select: none;
+    touch-action: none;
+  }
+
+  .label {
+    position: absolute;
+    top: 18px;
+    left: 24px;
+    font-size: 24px;
+    font-weight: 700;
+    color: #23364a;
+    z-index: 10;
+  }
+
+  .drag-hint {
+    position: absolute;
+    top: 152px;
+    left: 24px;
+    font-size: 14px;
+    color: #5e7288;
+    z-index: 10;
+  }
+
+  .tub {
+    position: absolute;
+    left: 140px;
+    bottom: 40px;
+    width: 620px;
+    height: 340px;
+    border: 6px solid #7f8c99;
+    border-top: none;
+    border-radius: 0 0 14px 14px;
+    background: rgba(255,255,255,0.35);
+    overflow: hidden;
+    z-index: 1;
+  }
+
+  .water {
+    position: absolute;
+    bottom: 0;
+    width: 100%;
+    height: 66.666%;
+    background: var(--water-color);
+    transform: translateY(1px);
+  }
+
+  .molecule-canvas {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    pointer-events: none;
+  }
+
+  .syringe {
+    position: absolute;
+    bottom: 110px;
+    width: 110px;
+    height: 250px;
+    border: 4px solid #666;
+    border-top: none;
+    background: rgba(255,255,255,0.18);
+    transform: rotate(180deg);
+    z-index: 3;
+    overflow: visible;
+  }
+
+  .syringe.left { left: 255px; }
+  .syringe.right { left: 535px; }
+
+  .syringe-water {
+    position: absolute;
+    inset: 0;
+    background: var(--water-color);
+    transform: rotate(180deg);
+  }
+
+  .electrode {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 20px;
+    height: 66.666%;
+    bottom: -12%;
+    border-radius: 10px;
+    z-index: 4;
+    overflow: hidden;
+    background: linear-gradient(
+      to right,
+      #2b2b2b 0%,
+      #888 30%,
+      #ffffff 50%,
+      #888 70%,
+      #2b2b2b 100%
+    );
+  }
+
+  .electron-slot-column {
+    position: absolute;
+    inset: 6px 0;
+    pointer-events: none;
+  }
+
+  .electron-transfer-layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 25;
+  }
+
+  .electron-slot {
+    position: absolute;
+    left: 50%;
+    width: 10px;
+    height: 10px;
+    margin-left: -5px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 8px;
+    line-height: 1;
+    font-weight: 700;
+    color: #3e3200;
+    background: radial-gradient(circle at 35% 35%, #fff7a8 0%, #f5df49 55%, #d8b300 100%);
+    border: 1px solid rgba(120, 92, 0, 0.7);
+    box-shadow:
+      0 0 0 1px rgba(255,255,255,0.28) inset,
+      0 1px 2px rgba(0,0,0,0.22);
+    transform: translateY(0);
+    transition: opacity 0.18s ease;
+  }
+
+  .electron-slot.is-empty {
+    opacity: 0;
+  }
+
+  .electron-slot.priority-1 {
+    box-shadow:
+      0 0 0 2px #a020f0,
+      0 0 0 1px rgba(255,255,255,0.28) inset,
+      0 1px 2px rgba(0,0,0,0.22);
+  }
+
+  .battery {
+    position: absolute;
+    top: 48px;
+    left: 315px;
+    width: 270px;
+    height: 96px;
+    border-radius: 18px;
+    background: linear-gradient(
+      to bottom,
+      #4d4d4d 0%,
+      #232323 18%,
+      #111111 50%,
+      #232323 82%,
+      #4d4d4d 100%
+    );
+    border: 2px solid #1a1a1a;
+    box-shadow:
+      inset 0 10px 18px rgba(255,255,255,0.14),
+      inset 0 -12px 18px rgba(0,0,0,0.35),
+      0 8px 18px rgba(0,0,0,0.2);
+    z-index: 7;
+  }
+
+  .battery::before {
+    content: "";
+    position: absolute;
+    inset: 8px 14px 40px 14px;
+    border-radius: 12px;
+    background: linear-gradient(
+      to bottom,
+      rgba(255,255,255,0.18),
+      rgba(255,255,255,0.03)
+    );
+    pointer-events: none;
+  }
+
+  .battery-cap {
+    position: absolute;
+    top: 28px;
+    width: 16px;
+    height: 40px;
+    background: linear-gradient(to bottom, #d7d7d7, #8c8c8c);
+    border: 1px solid #6f6f6f;
+    box-shadow: inset 0 2px 3px rgba(255,255,255,0.35);
+  }
+
+  .battery-cap.left {
+    left: -8px;
+    border-radius: 6px 0 0 6px;
+  }
+
+  .battery-cap.right {
+    right: -8px;
+    border-radius: 0 6px 6px 0;
+  }
+
+  .battery-plus,
+  .battery-minus {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 17px;
+    color: white;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+    z-index: 2;
+  }
+
+  .battery-plus {
+    left: 16px;
+    background: linear-gradient(to bottom, #ff6a6a, #c62828);
+  }
+
+  .battery-minus {
+    right: 16px;
+    background: linear-gradient(to bottom, #64b5f6, #1565c0);
+  }
+
+  .battery-label {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -40%);
+    padding: 8px 18px;
+    border-radius: 999px;
+    font-size: 20px;
+    font-weight: 700;
+    color: #1f1f1f;
+    background: linear-gradient(to bottom, #f0d76d, #c9a227);
+    border: 1px solid #9a7d18;
+    box-shadow:
+      inset 0 2px 2px rgba(255,255,255,0.35),
+      0 2px 6px rgba(0,0,0,0.18);
+  }
+
+  .wire-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 8;
+    pointer-events: none;
+  }
+
+  .wire {
+    fill: none;
+    stroke-width: 6;
+    stroke-linecap: round;
+    filter: drop-shadow(0 2px 2px rgba(0,0,0,0.18));
+  }
+
+  .wire.plus { stroke: #c62828; }
+  .wire.minus { stroke: #1565c0; }
+
+  .handle {
+    cursor: grab;
+    pointer-events: all;
+  }
+
+  .handle:active {
+    cursor: grabbing;
+  }
+
+  .handle-visible {
+    fill: rgba(255,255,255,0.8);
+    stroke: #6b7c8d;
+    stroke-width: 2;
+  }
+
+  .handle-hit {
+    fill: transparent;
+  }
+
+  .gas-debug-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 9;
+    pointer-events: none;
+  }
+
+  .gas-debug-zone {
+    position: absolute;
+    border: 1px dashed rgba(30, 80, 160, 0.9);
+    background: rgba(120, 180, 255, 0.18);
+  }
+
+  .gas-debug-zone::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    right: 4px;
+    font-size: 11px;
+    color: rgba(30, 80, 160, 0.95);
+    background: rgba(255,255,255,0.75);
+    padding: 1px 4px;
+    border-radius: 4px;
+  }
+
+
+  .pause-toggle {
+    position: static;
+    padding: 7px 12px;
+    border: 1px solid #8ea0b5;
+    border-radius: 999px;
+    background: #ffffff;
+    color: #23364a;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.10);
+  }
+
+  .pause-toggle:hover {
+    background: #f4f7fb;
+  }
+  .caption {
+    position: absolute;
+    left: 24px;
+    bottom: 20px;
+    font-size: 16px;
+    color: #41576d;
+    z-index: 10;
+  }
+
+  .sim-controls {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    z-index: 80;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 1px solid rgba(94, 114, 136, 0.45);
+    border-radius: 12px;
+    background: rgba(255,255,255,0.92);
+    box-shadow: 0 2px 10px rgba(0,0,0,0.10);
+    color: #23364a;
+  }
+
+  .speed-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #23364a;
+    white-space: nowrap;
+  }
+
+  .speed-control input[type="range"] {
+    width: 120px;
+  }
+
+  .speed-value {
+    min-width: 42px;
+    text-align: right;
+  }
+
+  .sim-toggle-btn {
+    border: 1px solid #5e7288;
+    background: rgba(255,255,255,0.92);
+    color: #23364a;
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  }
+
+  .sim-toggle-btn:hover {
+    background: #ffffff;
+  }
+
+</style>
+</head>
+<body>
+<div class="scene-viewport" id="sceneViewport">
+<div class="view-controls" id="viewControls">
+  <span>Zoom</span>
+  <input id="zoomRange" type="range" min="0.75" max="2.5" step="0.05" value="1">
+  <span id="zoomValue">100%</span>
+  <button class="view-btn" id="resetViewBtn" type="button">Reset</button>
+</div>
+<div class="sim-controls" id="simControls">
+  <button class="pause-toggle" id="pauseToggleBtn" type="button">Pause</button>
+  <label class="speed-control" for="speedRange">
+    <span>Tempo</span>
+    <input id="speedRange" type="range" min="0.25" max="2" step="0.25" value="1">
+    <span class="speed-value" id="speedValue">1,00×</span>
+  </label>
+</div>
+<div class="scene" id="scene">
+  <canvas class="molecule-canvas" id="moleculeCanvas" width="900" height="600"></canvas>
+  <div class="electron-transfer-layer" id="electronTransferLayer"></div>
+
+  <div class="gas-debug-layer" id="gasDebugLayer">
+    <div class="gas-debug-zone" id="gasDebugLeft" style="display:none;"></div>
+    <div class="gas-debug-zone" id="gasDebugRight" style="display:none;"></div>
+  </div>
+
+  <svg class="wire-layer" id="wireSvg" viewBox="0 0 900 600" preserveAspectRatio="none" aria-hidden="true">
+    <defs>
+      <marker id="clipMarkerPlus" markerWidth="34" markerHeight="18" refX="30" refY="9" orient="auto" markerUnits="userSpaceOnUse">
+        <g>
+          <rect x="0" y="3" width="12" height="12" rx="5" fill="url(#plusInsulation)" />
+          <rect x="10" y="4" width="12" height="10" rx="4" fill="url(#metalDark)" stroke="#444" stroke-width="0.7" />
+          <circle cx="19" cy="9" r="2.5" fill="url(#metalShine)" stroke="#555" stroke-width="0.6" />
+          <path d="M20 4 L31 1.5 L28 8.2 L31 16.5 L20 13.6 Z" fill="url(#metalJaw)" stroke="#666" stroke-width="0.7" />
+          <path d="M18 6.2 L29 4.8" stroke="#8d8d8d" stroke-width="0.8" />
+          <path d="M18 11.8 L29 13.2" stroke="#8d8d8d" stroke-width="0.8" />
+        </g>
+      </marker>
+
+      <marker id="clipMarkerMinus" markerWidth="34" markerHeight="18" refX="30" refY="9" orient="auto" markerUnits="userSpaceOnUse">
+        <g>
+          <rect x="0" y="3" width="12" height="12" rx="5" fill="url(#minusInsulation)" />
+          <rect x="10" y="4" width="12" height="10" rx="4" fill="url(#metalDark)" stroke="#444" stroke-width="0.7" />
+          <circle cx="19" cy="9" r="2.5" fill="url(#metalShine)" stroke="#555" stroke-width="0.6" />
+          <path d="M20 4 L31 1.5 L28 8.2 L31 16.5 L20 13.6 Z" fill="url(#metalJaw)" stroke="#666" stroke-width="0.7" />
+          <path d="M18 6.2 L29 4.8" stroke="#8d8d8d" stroke-width="0.8" />
+          <path d="M18 11.8 L29 13.2" stroke="#8d8d8d" stroke-width="0.8" />
+        </g>
+      </marker>
+
+      <linearGradient id="plusInsulation" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#ef5350"/>
+        <stop offset="100%" stop-color="#b71c1c"/>
+      </linearGradient>
+
+      <linearGradient id="minusInsulation" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#42a5f5"/>
+        <stop offset="100%" stop-color="#0d47a1"/>
+      </linearGradient>
+
+      <linearGradient id="metalDark" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0%" stop-color="#4a4a4a"/>
+        <stop offset="50%" stop-color="#919191"/>
+        <stop offset="100%" stop-color="#3a3a3a"/>
+      </linearGradient>
+
+      <linearGradient id="metalJaw" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0%" stop-color="#d4d4d4"/>
+        <stop offset="45%" stop-color="#8b8b8b"/>
+        <stop offset="100%" stop-color="#cfcfcf"/>
+      </linearGradient>
+
+      <radialGradient id="metalShine" cx="35%" cy="35%" r="70%">
+        <stop offset="0%" stop-color="#ffffff"/>
+        <stop offset="100%" stop-color="#888888"/>
+      </radialGradient>
+    </defs>
+
+    <path id="wirePlus" class="wire plus" marker-end="url(#clipMarkerPlus)"></path>
+    <path id="wireMinus" class="wire minus" marker-end="url(#clipMarkerMinus)"></path>
+
+    <g class="handle" id="handlePlus">
+      <circle class="handle-hit" r="18"></circle>
+      <circle class="handle-visible" r="8"></circle>
+    </g>
+
+    <g class="handle" id="handleMinus">
+      <circle class="handle-hit" r="18"></circle>
+      <circle class="handle-visible" r="8"></circle>
+    </g>
+  </svg>
+
+  <div class="battery" aria-label="Batterie mit Plus- und Minuspol">
+    <div class="battery-cap left"></div>
+    <div class="battery-cap right"></div>
+    <div class="battery-plus" id="plusPole">+</div>
+    <div class="battery-minus" id="minusPole">−</div>
+    <div class="battery-label">BAT</div>
+  </div>
+
+  <div class="tub" id="tub">
+    <div class="water"></div>
+  </div>
+
+  <div class="syringe left" id="leftSyringe" aria-label="Umgekehrte Spritze links, mit Wasser gefüllt">
+    <div class="syringe-water"></div>
+    <div class="electrode" id="leftElectrode"></div>
+  </div>
+
+  <div class="syringe right" id="rightSyringe" aria-label="Umgekehrte Spritze rechts, mit Wasser gefüllt">
+    <div class="syringe-water"></div>
+    <div class="electrode" id="rightElectrode"></div>
+  </div>
+
+</div>
+</div>
+
+<script>
+  const scene = document.getElementById('scene');
+  const sceneViewport = document.getElementById('sceneViewport');
+  const zoomRange = document.getElementById('zoomRange');
+  const zoomValue = document.getElementById('zoomValue');
+  const resetViewBtn = document.getElementById('resetViewBtn');
+  const plusPole = document.getElementById('plusPole');
+  const minusPole = document.getElementById('minusPole');
+  const leftElectrode = document.getElementById('leftElectrode');
+  const rightElectrode = document.getElementById('rightElectrode');
+  const leftSyringe = document.getElementById('leftSyringe');
+  const rightSyringe = document.getElementById('rightSyringe');
+  const ELECTRON_SLOT_COUNT = 6;
+  const ELECTRON_COOLDOWN_MS = 1000;
+  const ELECTRON_SLIDE_EASING = 0.24;
+  const ELECTRON_SHIFT_STEP_MS = 140;
+  const ELECTRON_TRANSFER_DURATION_MS = 520;
+  const WATER_REACTION_PAUSE_MS = 260;
+  const WATER_ELECTRON_TRANSFER_MS = 650;
+
+  function buildElectronSlots(electrodeEl) {
+    const column = document.createElement('div');
+    column.className = 'electron-slot-column';
+    const slots = [];
+
+    for (let i = 0; i < ELECTRON_SLOT_COUNT; i += 1) {
+      const slot = document.createElement('span');
+      slot.className = 'electron-slot';
+      slot.textContent = '−';
+      column.appendChild(slot);
+      slots.push(slot);
+    }
+
+    electrodeEl.appendChild(column);
+    return { column, slots };
+  }
+
+  const leftElectronUi = buildElectronSlots(leftElectrode);
+  const rightElectronUi = buildElectronSlots(rightElectrode);
+  const electronTransferLayer = document.getElementById('electronTransferLayer');
+
+  const wirePlus = document.getElementById('wirePlus');
+  const wireMinus = document.getElementById('wireMinus');
+  const handlePlus = document.getElementById('handlePlus');
+  const handleMinus = document.getElementById('handleMinus');
+
+  const moleculeCanvas = document.getElementById('moleculeCanvas');
+  const ctx = moleculeCanvas.getContext('2d');
+  const gasDebugLeft = document.getElementById('gasDebugLeft');
+  const gasDebugRight = document.getElementById('gasDebugRight');
+  const pauseToggleBtn = document.getElementById('pauseToggleBtn');
+
+  const handles = {
+    plus: { x: 240, y: 220, g: handlePlus, path: wirePlus, pole: plusPole, snappedElectrode: null },
+    minus: { x: 660, y: 225, g: handleMinus, path: wireMinus, pole: minusPole, snappedElectrode: null }
+  };
+
+  const SNAP_DISTANCE = 38;
+  const electrodes = [leftElectrode, rightElectrode];
+
+  const connectionState = {
+    leftElectrodePolarity: null,
+    rightElectrodePolarity: null
+  };
+
+  const viewCamera = { zoom: 1, panX: 0, panY: 0, panning: false, lastX: 0, lastY: 0 };
+
+  function clampViewCamera() {
+    const zoom = viewCamera.zoom;
+    const viewportW = sceneViewport.clientWidth || 900;
+    const viewportH = sceneViewport.clientHeight || 600;
+    const scaledW = scene.clientWidth * zoom;
+    const scaledH = scene.clientHeight * zoom;
+    const minX = Math.min(0, viewportW - scaledW);
+    const minY = Math.min(0, viewportH - scaledH);
+    viewCamera.panX = Math.max(minX, Math.min(0, viewCamera.panX));
+    viewCamera.panY = Math.max(minY, Math.min(0, viewCamera.panY));
+  }
+
+  function applyViewCamera() {
+    clampViewCamera();
+    scene.style.transformOrigin = '0 0';
+    scene.style.transform = `translate(${viewCamera.panX}px, ${viewCamera.panY}px) scale(${viewCamera.zoom})`;
+    if (zoomRange && Number(zoomRange.value) !== viewCamera.zoom) zoomRange.value = String(viewCamera.zoom);
+    if (zoomValue) zoomValue.textContent = `${Math.round(viewCamera.zoom * 100)}%`;
+  }
+
+  function clientPointToScene(e) {
+    const rect = scene.getBoundingClientRect();
+    return {
+      x: (e.clientX - rect.left) / viewCamera.zoom,
+      y: (e.clientY - rect.top) / viewCamera.zoom
+    };
+  }
+
+  function scaledSceneDelta(value) {
+    return value / viewCamera.zoom;
+  }
+
+  function createElectrodeElectronState(key, ui) {
+    return {
+      key,
+      ui,
+      cooldownUntil: 0,
+      pendingAction: false,
+      cathodeReactionsSinceLastAnode: 0,
+      pendingAnodeFill: null,
+      electrons: Array.from({ length: ELECTRON_SLOT_COUNT }, (_, index) => ({
+        id: `${key}-electron-${index + 1}`,
+        present: true,
+        priority: index + 1,
+        targetPriority: index + 1,
+        currentPriority: index + 1
+      }))
+    };
+  }
+
+  const electrodeElectronState = {
+    left: createElectrodeElectronState('left', leftElectronUi),
+    right: createElectrodeElectronState('right', rightElectronUi)
+  };
+
+  const electronTransfers = [];
+  const reactionElectronTransfers = [];
+  let simulationPaused = false;
+  let simulationSpeed = 1;
+  let simulatedNowMs = 0;
+  let lastFrameTimestamp = null;
+  let simulationStepAccumulator = 0;
+
+  function formatSpeedLabel(value) {
+    return `${value.toFixed(2).replace('.', ',')}×`;
+  }
+
+  function getSimNow() {
+    return simulatedNowMs;
+  }
+
+  function setSimulationPaused(nextPaused) {
+    if (nextPaused === simulationPaused) return;
+    simulationPaused = nextPaused;
+    if (pauseToggleBtn) pauseToggleBtn.textContent = simulationPaused ? 'Play' : 'Pause';
+  }
+
+  if (pauseToggleBtn) {
+    pauseToggleBtn.addEventListener('click', () => {
+      setSimulationPaused(!simulationPaused);
+    });
+  }
+
+  if (speedRange) {
+    speedRange.addEventListener('input', () => {
+      const nextSpeed = Number(speedRange.value) || 1;
+      simulationSpeed = Math.max(0.25, Math.min(2, nextSpeed));
+      if (speedValue) speedValue.textContent = formatSpeedLabel(simulationSpeed);
+    });
+    simulationSpeed = Number(speedRange.value) || 1;
+  }
+
+  if (speedValue) speedValue.textContent = formatSpeedLabel(simulationSpeed);
+
+  let electronTransferSerial = 0;
+
+  function getElectrodeKey(el) {
+    if (el === leftElectrode) return 'left';
+    if (el === rightElectrode) return 'right';
+    return null;
+  }
+
+  function getElectrodeElementByKey(key) {
+    if (key === 'left') return leftElectrode;
+    if (key === 'right') return rightElectrode;
+    return null;
+  }
+
+  function getHandleForPolarity(polarity) {
+    if (polarity === 'plus') return handles.plus;
+    if (polarity === 'minus') return handles.minus;
+    return null;
+  }
+
+  function getElectrodeElectronState(el) {
+    const key = getElectrodeKey(el);
+    return key ? electrodeElectronState[key] : null;
+  }
+
+  function getElectronAtPriority(state, priority) {
+    return state.electrons.find(electron => electron.present && electron.priority === priority) || null;
+  }
+
+  function getElectrodeSlotMetrics(state) {
+    const { column } = state.ui;
+    const columnHeight = column.clientHeight || 1;
+    const slotSize = Math.min(10, Math.max(8, column.clientWidth || 10));
+    const maxTop = Math.max(0, columnHeight - slotSize);
+    const pitch = ELECTRON_SLOT_COUNT > 1 ? maxTop / (ELECTRON_SLOT_COUNT - 1) : 0;
+    return { slotSize, maxTop, pitch };
+  }
+
+  function getPriorityTop(state, priority) {
+    const { maxTop, pitch } = getElectrodeSlotMetrics(state);
+    // Die Spritzen sind per CSS um 180° gedreht. Deshalb ist die visuelle
+    // Richtung innerhalb der Elektrode gegenüber dem DOM invertiert.
+    // Priorität 1 soll visuell unten liegen und muss daher im DOM oben liegen.
+    const unclamped = (priority - 1) * pitch;
+    return Math.max(0, Math.min(maxTop, unclamped));
+  }
+
+  function getElectrodeSlotSceneCenter(state, priority) {
+    const sceneRect = scene.getBoundingClientRect();
+    const slotEl = state.ui.slots.find(slot => Number(slot.dataset.priority) === priority && !slot.classList.contains('is-empty'))
+      || state.ui.slots.find(slot => Number(slot.dataset.priority) === priority)
+      || null;
+
+    if (slotEl) {
+      const slotRect = slotEl.getBoundingClientRect();
+      return {
+        x: scaledSceneDelta(slotRect.left - sceneRect.left) + scaledSceneDelta(slotRect.width) / 2,
+        y: scaledSceneDelta(slotRect.top - sceneRect.top) + scaledSceneDelta(slotRect.height) / 2
+      };
+    }
+
+    const columnRect = state.ui.column.getBoundingClientRect();
+    const { slotSize } = getElectrodeSlotMetrics(state);
+    return {
+      x: scaledSceneDelta(columnRect.left - sceneRect.left) + scaledSceneDelta(columnRect.width) / 2,
+      y: scaledSceneDelta(columnRect.top - sceneRect.top) + getPriorityTop(state, priority) + slotSize / 2
+    };
+  }
+
+  function getElectrodePriorityTransferTarget(state, priority) {
+    const sceneRect = scene.getBoundingClientRect();
+    const columnRect = state.ui.column.getBoundingClientRect();
+    const { slotSize } = getElectrodeSlotMetrics(state);
+
+    // Für Transferziele dürfen wir uns nicht auf aktuell sichtbare Elektronen verlassen,
+    // weil Priorität 1 und 2 beim Anoden-Transfer gerade frei sein können.
+    // Daher werden die Zielpunkte immer aus den festen Prioritätspositionen berechnet.
+    return {
+      x: scaledSceneDelta(columnRect.left - sceneRect.left) + scaledSceneDelta(columnRect.width) / 2,
+      y: scaledSceneDelta(columnRect.top - sceneRect.top) + getPriorityTop(state, priority) + slotSize / 2
+    };
+  }
+
+  function getElectrodePriorityOneTransferTarget(state) {
+    return getElectrodePriorityTransferTarget(state, 1);
+  }
+
+  function layoutElectrodeSlots(state) {
+    const { slots } = state.ui;
+
+    state.electrons.forEach((electron, index) => {
+      const slotEl = slots[index];
+      slotEl.dataset.priority = String(electron.priority);
+      slotEl.dataset.electronId = electron.id;
+      slotEl.style.top = `${getPriorityTop(state, electron.currentPriority)}px`;
+      slotEl.classList.toggle('is-empty', !electron.present);
+      slotEl.classList.toggle('priority-1', electron.present && electron.priority === 1);
+    });
+  }
+
+  function refreshAllElectrodeElectronSlots() {
+    layoutElectrodeSlots(electrodeElectronState.left);
+    layoutElectrodeSlots(electrodeElectronState.right);
+  }
+
+  function updateElectrodeElectronAnimations() {
+    Object.values(electrodeElectronState).forEach(state => {
+      state.electrons.forEach(electron => {
+        const delta = electron.targetPriority - electron.currentPriority;
+        if (Math.abs(delta) < 0.002) {
+          electron.currentPriority = electron.targetPriority;
+        } else {
+          electron.currentPriority += delta * ELECTRON_SLIDE_EASING;
+        }
+      });
+    });
+    refreshAllElectrodeElectronSlots();
+  }
+
+  function refreshTransferLayer() {
+    electronTransfers.forEach(transfer => {
+      const point = transfer.pathPoints[Math.min(transfer.index, transfer.pathPoints.length - 1)] || transfer.pathPoints[transfer.pathPoints.length - 1];
+      transfer.el.style.left = `${point.x - transfer.radius}px`;
+      transfer.el.style.top = `${point.y - transfer.radius}px`;
+    });
+  }
+
+  function sampleSvgPath(pathEl, reverse = false, step = 10) {
+    const total = pathEl.getTotalLength();
+    const points = [];
+    for (let length = 0; length <= total; length += step) {
+      const p = pathEl.getPointAtLength(length);
+      points.push({ x: p.x, y: p.y });
+    }
+    const end = pathEl.getPointAtLength(total);
+    points.push({ x: end.x, y: end.y });
+    return reverse ? points.reverse() : points;
+  }
+
+  function lerpPoint(a, b, t) {
+    return {
+      x: a.x + (b.x - a.x) * t,
+      y: a.y + (b.y - a.y) * t
+    };
+  }
+
+  function buildSegmentPoints(a, b, steps = 12) {
+    const points = [];
+    for (let i = 0; i <= steps; i += 1) {
+      points.push(lerpPoint(a, b, i / steps));
+    }
+    return points;
+  }
+
+  function createTransferElectronElement() {
+    const el = document.createElement('span');
+    el.className = 'electron-slot';
+    el.style.position = 'absolute';
+    el.style.marginLeft = '0';
+    el.style.pointerEvents = 'none';
+    electronTransferLayer.appendChild(el);
+    return el;
+  }
+
+  function startElectronTransfer(fromState, toState, electron) {
+    const fromElectrode = getElectrodeElementByKey(fromState.key);
+    const toElectrode = getElectrodeElementByKey(toState.key);
+    const fromPolarity = connectionState[`${fromState.key}ElectrodePolarity`];
+    const toPolarity = connectionState[`${toState.key}ElectrodePolarity`];
+    const fromHandle = getHandleForPolarity(fromPolarity);
+    const toHandle = getHandleForPolarity(toPolarity);
+
+    const materializeTransferredElectronAtCathode = () => {
+      const cathodePlaceholder = toState.electrons.find(candidate => !candidate.present) || null;
+      if (!cathodePlaceholder) return;
+      cathodePlaceholder.present = true;
+      cathodePlaceholder.priority = ELECTRON_SLOT_COUNT;
+      cathodePlaceholder.targetPriority = ELECTRON_SLOT_COUNT;
+      cathodePlaceholder.currentPriority = ELECTRON_SLOT_COUNT;
+    };
+
+    if (!fromElectrode || !toElectrode || !fromHandle || !toHandle) {
+      materializeTransferredElectronAtCathode();
+      refreshAllElectrodeElectronSlots();
+      return;
+    }
+
+    const fromSlot = getElectrodeSlotSceneCenter(fromState, ELECTRON_SLOT_COUNT);
+    const toSlot = getElectrodeSlotSceneCenter(toState, ELECTRON_SLOT_COUNT);
+    const fromTip = electrodeTipPoint(fromElectrode);
+    const toTip = electrodeTipPoint(toElectrode);
+    const fromPolePoint = batteryMetalPoint(fromHandle.pole);
+    const toPolePoint = batteryMetalPoint(toHandle.pole);
+
+    const pathPoints = [
+      ...buildSegmentPoints(fromSlot, fromTip, 8),
+      ...sampleSvgPath(fromHandle.path, true, 12),
+      ...buildSegmentPoints(fromPolePoint, toPolePoint, 12),
+      ...sampleSvgPath(toHandle.path, false, 12),
+      ...buildSegmentPoints(toTip, toSlot, 8)
+    ];
+
+    const transfer = {
+      id: `transfer-${++electronTransferSerial}`,
+      electronId: electron.id,
+      fromKey: fromState.key,
+      toKey: toState.key,
+      pathPoints,
+      index: 0,
+      speed: Math.max(1, Math.ceil(pathPoints.length / Math.max(1, Math.round(ELECTRON_TRANSFER_DURATION_MS / 16)))),
+      radius: Math.min(5, Math.max(4, getElectrodeSlotMetrics(toState).slotSize / 2)),
+      el: createTransferElectronElement(),
+      onComplete() {
+        materializeTransferredElectronAtCathode();
+        refreshAllElectrodeElectronSlots();
+      }
+    };
+
+    electronTransfers.push(transfer);
+    refreshTransferLayer();
+  }
+
+  function updateElectronTransfers() {
+    for (let i = electronTransfers.length - 1; i >= 0; i -= 1) {
+      const transfer = electronTransfers[i];
+      transfer.index += transfer.speed;
+      if (transfer.index >= transfer.pathPoints.length - 1) {
+        transfer.onComplete();
+        transfer.el.remove();
+        electronTransfers.splice(i, 1);
+      }
+    }
+    refreshTransferLayer();
+  }
+
+  function spawnWaterReactionElectronTransfer(from, to, options = {}) {
+    const radius = options.radius || 6;
+    const el = createTransferElectronElement();
+    el.textContent = options.label || '−';
+    el.style.width = `${radius * 2}px`;
+    el.style.height = `${radius * 2}px`;
+    el.style.marginLeft = '0';
+    el.style.fontSize = `${Math.max(9, radius * 1.7)}px`;
+    el.style.lineHeight = '1';
+    el.style.left = `${from.x - radius}px`;
+    el.style.top = `${from.y - radius}px`;
+    el.style.zIndex = '30';
+    el.style.boxShadow = '0 0 0 2px rgba(160, 32, 240, 0.85), 0 0 10px rgba(245, 223, 73, 0.75), 0 1px 2px rgba(0,0,0,0.28)';
+
+    reactionElectronTransfers.push({
+      x: from.x,
+      y: from.y,
+      fromX: from.x,
+      fromY: from.y,
+      targetX: to.x,
+      targetY: to.y,
+      progress: 0,
+      radius,
+      label: options.label || '−',
+      el,
+      onComplete: typeof options.onComplete === 'function' ? options.onComplete : null
+    });
+  }
+
+  function updateWaterReactionElectronTransfers() {
+    for (let i = reactionElectronTransfers.length - 1; i >= 0; i -= 1) {
+      const transfer = reactionElectronTransfers[i];
+      transfer.progress += 16 / WATER_ELECTRON_TRANSFER_MS;
+      if (transfer.progress >= 1) {
+        transfer.el?.remove();
+        if (transfer.onComplete) transfer.onComplete();
+        reactionElectronTransfers.splice(i, 1);
+        continue;
+      }
+      const eased = 1 - Math.pow(1 - transfer.progress, 3);
+      transfer.x = transfer.fromX + (transfer.targetX - transfer.fromX) * eased;
+      transfer.y = transfer.fromY + (transfer.targetY - transfer.fromY) * eased;
+      if (transfer.el) {
+        transfer.el.style.left = `${transfer.x - transfer.radius}px`;
+        transfer.el.style.top = `${transfer.y - transfer.radius}px`;
+      }
+    }
+  }
+
+  function drawWaterReactionElectronTransfers() {
+  }
+
+  function getMissingPriorities(state) {
+    const missing = [];
+    for (let priority = 1; priority <= ELECTRON_SLOT_COUNT; priority += 1) {
+      if (!getElectronAtPriority(state, priority)) missing.push(priority);
+    }
+    return missing;
+  }
+
+  function getMissingElectronCount(state) {
+    return state.electrons.filter(electron => !electron.present).length;
+  }
+
+  function hasAnodeReactionWindow(state) {
+    if (!state) return false;
+    const missingPriorities = getMissingPriorities(state);
+    return missingPriorities.includes(1) && missingPriorities.includes(2) && getMissingElectronCount(state) >= 2;
+  }
+
+  function canCathodeConsumeElectron(el) {
+    const state = getElectrodeElectronState(el);
+    if (!state || state.pendingAction || getSimNow() < state.cooldownUntil) return false;
+
+    const otherEl = el === leftElectrode ? rightElectrode : leftElectrode;
+    const otherState = getElectrodeElectronState(otherEl);
+    // Pro Zyklus dürfen an der Kathode höchstens zwei Reaktionen stattfinden.
+    // Danach muss zuerst an der Anode eine Reaktion erfolgen, die die
+    // Prioritäten 1 und 2 wieder auffüllt.
+    if (otherState && otherState.cathodeReactionsSinceLastAnode >= 2) return false;
+
+    // Sobald an der Anode die Prioritäten 1 und 2 frei sind, bekommt die
+    // Anodenreaktion Vorrang. Dadurch werden die zwei fehlenden Elektronen
+    // wieder neu erzeugt, bevor die Kathode weiter entlädt.
+    if (hasAnodeReactionWindow(otherState)) return false;
+
+    return Boolean(getElectronAtPriority(state, 1));
+  }
+
+  function canAnodeReact(el) {
+    const state = getElectrodeElectronState(el);
+    if (!state || state.pendingAction || getSimNow() < state.cooldownUntil) return false;
+    return hasAnodeReactionWindow(state);
+  }
+
+  function shiftElectronsSequentially(state, priorities, delta, startDelay = 0) {
+    priorities.forEach((priority, index) => {
+      window.setTimeout(() => {
+        const electron = getElectronAtPriority(state, priority);
+        if (!electron) return;
+        const nextPriority = priority + delta;
+        electron.priority = nextPriority;
+        electron.targetPriority = nextPriority;
+      }, startDelay + index * ELECTRON_SHIFT_STEP_MS);
+    });
+    return startDelay + priorities.length * ELECTRON_SHIFT_STEP_MS;
+  }
+
+  function consumeBottomCathodeElectron(el) {
+    const cathodeState = getElectrodeElectronState(el);
+    const anodeEl = el === leftElectrode ? rightElectrode : leftElectrode;
+    const anodeState = getElectrodeElectronState(anodeEl);
+
+    if (!cathodeState || !anodeState || cathodeState.pendingAction || anodeState.pendingAction) return false;
+    if (getSimNow() < cathodeState.cooldownUntil) return false;
+
+    const consumedElectron = getElectronAtPriority(cathodeState, 1);
+    const transferElectron = getElectronAtPriority(anodeState, ELECTRON_SLOT_COUNT);
+    if (!consumedElectron || !transferElectron) return false;
+
+    const now = getSimNow();
+    cathodeState.cooldownUntil = now + ELECTRON_COOLDOWN_MS;
+    cathodeState.pendingAction = true;
+    anodeState.pendingAction = true;
+    anodeState.cathodeReactionsSinceLastAnode += 1;
+
+    consumedElectron.present = false;
+    const shiftDone = shiftElectronsSequentially(cathodeState, [2, 3, 4, 5, 6], -1, 0);
+
+    window.setTimeout(() => {
+      transferElectron.present = false;
+      startElectronTransfer(anodeState, cathodeState, transferElectron);
+      shiftElectronsSequentially(anodeState, [5, 4, 3, 2, 1], 1, 0);
+    }, shiftDone);
+
+    window.setTimeout(() => {
+      cathodeState.pendingAction = false;
+      anodeState.pendingAction = false;
+    }, ELECTRON_COOLDOWN_MS);
+
+    refreshAllElectrodeElectronSlots();
+    refreshTransferLayer();
+    return true;
+  }
+
+  function beginAnodeElectronPopulation(el) {
+    const state = getElectrodeElectronState(el);
+    if (!state || state.pendingAction || getSimNow() < state.cooldownUntil) return false;
+    if (!canAnodeReact(el)) return false;
+
+    const missingElectrons = state.electrons.filter(electron => !electron.present).slice(0, 2);
+    if (missingElectrons.length < 2) return false;
+
+    const now = getSimNow();
+    state.cooldownUntil = now + ELECTRON_COOLDOWN_MS;
+    state.pendingAction = true;
+    state.pendingAnodeFill = {
+      createdAt: now,
+      arrivalsRemaining: 2,
+      slots: [
+        { electron: missingElectrons[0], priority: 1 },
+        { electron: missingElectrons[1], priority: 2 }
+      ]
+    };
+    return true;
+  }
+
+  function fillAnodePriority(state, priority, specificElectron = null) {
+    if (!state) return false;
+
+    const slot = (specificElectron && !specificElectron.present)
+      ? specificElectron
+      : (state.electrons.find(electron => !electron.present) || null);
+    if (!slot) return false;
+
+    slot.present = true;
+    slot.priority = priority;
+    slot.targetPriority = priority;
+    slot.currentPriority = priority;
+
+    refreshAllElectrodeElectronSlots();
+    return true;
+  }
+
+  function releaseStaleAnodeLocks() {
+    Object.values(electrodeElectronState).forEach(state => {
+      const fill = state.pendingAnodeFill;
+      if (!fill) return;
+      if (getSimNow() - fill.createdAt < WATER_ELECTRON_TRANSFER_MS + 600) return;
+      fill.slots.forEach((slot, index) => {
+        if (!slot.done) materializePendingAnodeElectron(getElectrodeElementByKey(state.key), index);
+      });
+      if (state.pendingAnodeFill) {
+        state.pendingAction = false;
+        state.pendingAnodeFill = null;
+      }
+    });
+  }
+
+  function materializePendingAnodeElectron(el, slotIndex) {
+    const state = getElectrodeElectronState(el);
+    const pendingFill = state?.pendingAnodeFill;
+    const slot = pendingFill?.slots?.[slotIndex] || null;
+    if (!state || !pendingFill || !slot || slot.done) return false;
+
+    const filled = fillAnodePriority(state, slot.priority, slot.electron);
+    if (!filled) return false;
+
+    slot.done = true;
+    pendingFill.arrivalsRemaining -= 1;
+
+    if (pendingFill.arrivalsRemaining <= 0) {
+      state.pendingAction = false;
+      state.cathodeReactionsSinceLastAnode = 0;
+      state.pendingAnodeFill = null;
+    }
+
+    return true;
+  }
+
+  const syringeState = {
+    left: {
+      el: leftSyringe,
+      waterEl: leftSyringe.querySelector('.syringe-water'),
+      trappedH2: 0,
+      waterFraction: 1,
+      targetWaterFraction: 1
+    },
+    right: {
+      el: rightSyringe,
+      waterEl: rightSyringe.querySelector('.syringe-water'),
+      trappedH2: 0,
+      waterFraction: 1,
+      targetWaterFraction: 1
+    }
+  };
+
+  let waterGeometry = null;
+  let molecules = [];
+
+  function updateConnectionState() {
+    connectionState.leftElectrodePolarity = null;
+    connectionState.rightElectrodePolarity = null;
+
+    if (handles.plus.snappedElectrode === leftElectrode) connectionState.leftElectrodePolarity = 'plus';
+    if (handles.plus.snappedElectrode === rightElectrode) connectionState.rightElectrodePolarity = 'plus';
+    if (handles.minus.snappedElectrode === leftElectrode) connectionState.leftElectrodePolarity = 'minus';
+    if (handles.minus.snappedElectrode === rightElectrode) connectionState.rightElectrodePolarity = 'minus';
+
+    window.connectionState = connectionState;
+    window.connectionState.circuitOpenByGas = isCircuitForcedOpenByGas();
+    window.connectionState.effectiveCircuitClosed = isEffectiveCircuitClosed();
+  }
+
+  function isCircuitClosed() {
+    return (
+      handles.plus.snappedElectrode &&
+      handles.minus.snappedElectrode &&
+      handles.plus.snappedElectrode !== handles.minus.snappedElectrode
+    );
+  }
+
+  function isCircuitForcedOpenByGas() {
+    return Object.values(syringeState).some(s => {
+      const gasFraction = 1 - s.waterFraction;
+      return gasFraction >= 6 / 9;
+    });
+  }
+
+  function isEffectiveCircuitClosed() {
+    return isCircuitClosed() && !isCircuitForcedOpenByGas();
+  }
+
+  function getMinusElectrode() {
+    if (!isEffectiveCircuitClosed()) return null;
+    if (connectionState.leftElectrodePolarity === 'minus') return leftElectrode;
+    if (connectionState.rightElectrodePolarity === 'minus') return rightElectrode;
+    return null;
+  }
+
+  function getPlusElectrode() {
+    if (!isEffectiveCircuitClosed()) return null;
+    if (connectionState.leftElectrodePolarity === 'plus') return leftElectrode;
+    if (connectionState.rightElectrodePolarity === 'plus') return rightElectrode;
+    return null;
+  }
+
+  function centerInScene(el) {
+    const sceneRect = scene.getBoundingClientRect();
+    const rect = el.getBoundingClientRect();
+    return {
+      x: scaledSceneDelta(rect.left - sceneRect.left) + scaledSceneDelta(rect.width) / 2,
+      y: scaledSceneDelta(rect.top - sceneRect.top) + scaledSceneDelta(rect.height) / 2
+    };
+  }
+
+  function batteryMetalPoint(poleEl) {
+    const batteryRect = poleEl.parentElement.getBoundingClientRect();
+    const sceneRect = scene.getBoundingClientRect();
+    const poleRect = poleEl.getBoundingClientRect();
+    const isPlus = poleEl.id === 'plusPole';
+
+    return {
+      x: scaledSceneDelta((isPlus ? batteryRect.left : batteryRect.right) - sceneRect.left),
+      y: scaledSceneDelta(poleRect.top - sceneRect.top) + scaledSceneDelta(poleRect.height) / 2
+    };
+  }
+
+  function electrodeTipPoint(el) {
+    const sceneRect = scene.getBoundingClientRect();
+    const rect = el.getBoundingClientRect();
+    return {
+      x: scaledSceneDelta(rect.left - sceneRect.left) + scaledSceneDelta(rect.width) / 2,
+      y: scaledSceneDelta(rect.top - sceneRect.top) + 2
+    };
+  }
+
+  function electrodeCollisionInfo(el) {
+    const sceneRect = scene.getBoundingClientRect();
+    const rect = el.getBoundingClientRect();
+    return {
+      x: scaledSceneDelta(rect.left - sceneRect.left) + scaledSceneDelta(rect.width) / 2,
+      yTop: scaledSceneDelta(rect.top - sceneRect.top),
+      yBottom: scaledSceneDelta(rect.bottom - sceneRect.top),
+      radius: 14
+    };
+  }
+
+  function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+  }
+
+  function getElectrodeReactiveSegment(el) {
+    const info = electrodeCollisionInfo(el);
+    const safetyInset = 8;
+    const syringe = getSyringeForElectrode(el);
+    const syringeTop = syringe ? syringe.inner.y : info.yTop;
+    const syringeBottom = syringe ? syringe.inner.y + syringe.inner.height : info.yBottom;
+    const yTop = Math.min(info.yBottom, Math.max(info.yTop + safetyInset, syringeTop + safetyInset));
+    const yBottom = Math.max(yTop, Math.min(info.yBottom - safetyInset, syringeBottom - safetyInset));
+    return { ...info, yTop, yBottom };
+  }
+
+  function nearestPointOnElectrodeSegment(el, px, py) {
+    const segment = getElectrodeReactiveSegment(el);
+    return {
+      x: segment.x,
+      y: clamp(py, segment.yTop, segment.yBottom)
+    };
+  }
+
+  function distance(a, b) {
+    return Math.hypot(a.x - b.x, a.y - b.y);
+  }
+
+  function ensureMinimumVelocity(particle, minSpeed = 0.035) {
+    const speed = Math.hypot(particle.vx, particle.vy);
+    if (speed < minSpeed) {
+      const angle = Math.random() * Math.PI * 2;
+      particle.vx += Math.cos(angle) * minSpeed;
+      particle.vy += Math.sin(angle) * minSpeed;
+    }
+  }
+
+  function addWallGlideJitter(particle, amount = 0.025) {
+    particle.vx += (Math.random() - 0.5) * amount;
+    particle.vy += (Math.random() - 0.5) * amount;
+  }
+
+  function initAntiStickState(particle) {
+    particle.prevX = particle.x;
+    particle.prevY = particle.y;
+    particle.stuckFrames = 0;
+    particle.wallHits = 0;
+  }
+
+  function registerWallHit(particle) {
+    particle.wallHits = (particle.wallHits || 0) + 1;
+    addWallGlideJitter(particle, 0.04);
+
+    // kleiner Schubs von der Wand weg durch Geschwindigkeitsverstärkung
+    particle.vx *= 1.05;
+    particle.vy *= 1.05;
+    ensureMinimumVelocity(particle, 0.05);
+  }
+
+  function updateAntiStickState(particle) {
+    const moved = Math.hypot(particle.x - particle.prevX, particle.y - particle.prevY);
+
+    if (moved < 0.08) {
+      particle.stuckFrames = (particle.stuckFrames || 0) + 1;
+    } else {
+      particle.stuckFrames = 0;
+    }
+
+    particle.prevX = particle.x;
+    particle.prevY = particle.y;
+
+    if (particle.stuckFrames > 6 || (particle.wallHits || 0) > 3) {
+      const angle = Math.random() * Math.PI * 2;
+      particle.vx += Math.cos(angle) * 0.22;
+      particle.vy += Math.sin(angle) * 0.22;
+      particle.x += Math.cos(angle) * 1.5;
+      particle.y += Math.sin(angle) * 1.5;
+      particle.stuckFrames = 0;
+      particle.wallHits = 0;
+    } else if (particle.wallHits > 0) {
+      particle.wallHits -= 1;
+    }
+  }
+
+  function maybeSnap(handle) {
+    const current = { x: handle.x, y: handle.y };
+    let closestPoint = null;
+    let closestEl = null;
+    let minDist = Infinity;
+
+    electrodes.forEach(el => {
+      const tip = electrodeTipPoint(el);
+      const d = distance(current, tip);
+      if (d < minDist) {
+        minDist = d;
+        closestPoint = tip;
+        closestEl = el;
+      }
+    });
+
+    if (closestPoint && minDist <= SNAP_DISTANCE) {
+      handle.x = closestPoint.x;
+      handle.y = closestPoint.y;
+      handle.snappedElectrode = closestEl;
+    } else {
+      handle.snappedElectrode = null;
+    }
+  }
+
+  function updateHandleGraphics(handle) {
+    handle.g.setAttribute('transform', `translate(${handle.x} ${handle.y})`);
+  }
+
+  function updateWire(handle) {
+    const start = batteryMetalPoint(handle.pole);
+    const end = { x: handle.x, y: handle.y };
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const sag = Math.max(30, Math.abs(dx) * 0.12 + 20);
+
+    const c1 = { x: start.x + dx * 0.28, y: start.y + sag };
+    const c2 = { x: end.x - dx * 0.18, y: end.y + Math.min(24, Math.abs(dy) * 0.15) };
+
+    handle.path.setAttribute(
+      'd',
+      `M ${start.x} ${start.y} C ${c1.x} ${c1.y}, ${c2.x} ${c2.y}, ${end.x} ${end.y}`
+    );
+  }
+
+  function updateAll() {
+    Object.values(handles).forEach(handle => {
+      updateHandleGraphics(handle);
+      updateWire(handle);
+    });
+    updateConnectionState();
+  }
+
+
+  if (zoomRange) {
+    zoomRange.addEventListener('input', () => {
+      const oldZoom = viewCamera.zoom;
+      const nextZoom = Math.max(0.75, Math.min(2.5, Number(zoomRange.value) || 1));
+      const viewportW = sceneViewport.clientWidth || 900;
+      const viewportH = sceneViewport.clientHeight || 600;
+      const focusX = (viewportW / 2 - viewCamera.panX) / oldZoom;
+      const focusY = (viewportH / 2 - viewCamera.panY) / oldZoom;
+      viewCamera.zoom = nextZoom;
+      viewCamera.panX = viewportW / 2 - focusX * nextZoom;
+      viewCamera.panY = viewportH / 2 - focusY * nextZoom;
+      applyViewCamera();
+      updateAll();
+      waterGeometry = getWaterGeometry();
+    });
+  }
+
+  if (resetViewBtn) {
+    resetViewBtn.addEventListener('click', () => {
+      viewCamera.zoom = 1;
+      viewCamera.panX = 0;
+      viewCamera.panY = 0;
+      applyViewCamera();
+      updateAll();
+      waterGeometry = getWaterGeometry();
+    });
+  }
+
+  sceneViewport.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('.view-controls') || e.target.closest('.handle') || e.target.closest('.sim-controls')) return;
+    viewCamera.panning = true;
+    viewCamera.lastX = e.clientX;
+    viewCamera.lastY = e.clientY;
+    sceneViewport.setPointerCapture?.(e.pointerId);
+  });
+
+  sceneViewport.addEventListener('pointermove', (e) => {
+    if (!viewCamera.panning) return;
+    viewCamera.panX += e.clientX - viewCamera.lastX;
+    viewCamera.panY += e.clientY - viewCamera.lastY;
+    viewCamera.lastX = e.clientX;
+    viewCamera.lastY = e.clientY;
+    applyViewCamera();
+    updateAll();
+    waterGeometry = getWaterGeometry();
+  });
+
+  sceneViewport.addEventListener('pointerup', () => {
+    viewCamera.panning = false;
+  });
+
+  sceneViewport.addEventListener('pointercancel', () => {
+    viewCamera.panning = false;
+  });
+
+  function makeDraggable(handle) {
+    let dragging = false;
+
+    function pointerMove(e) {
+      if (!dragging) return;
+      const p = clientPointToScene(e);
+      let x = p.x;
+      let y = p.y;
+
+      x = Math.max(20, Math.min(x, scene.clientWidth - 20));
+      y = Math.max(20, Math.min(y, scene.clientHeight - 20));
+
+      handle.x = x;
+      handle.y = y;
+      handle.snappedElectrode = null;
+      updateAll();
+    }
+
+    function pointerUp() {
+      dragging = false;
+      maybeSnap(handle);
+      updateAll();
+      window.removeEventListener('pointermove', pointerMove);
+      window.removeEventListener('pointerup', pointerUp);
+    }
+
+    handle.g.addEventListener('pointerdown', (e) => {
+      dragging = true;
+      handle.g.setPointerCapture?.(e.pointerId);
+      window.addEventListener('pointermove', pointerMove);
+      window.addEventListener('pointerup', pointerUp);
+    });
+  }
+
+  makeDraggable(handles.plus);
+  makeDraggable(handles.minus);
+
+  function updateSyringeVisuals() {
+    Object.entries(syringeState).forEach(([key, s]) => {
+      s.waterEl.style.height = `${Math.max(0, Math.min(1, s.waterFraction)) * 100}%`;
+    });
+  }
+
+  function updateGasDebugZones() {
+    if (!waterGeometry) return;
+
+    const zones = {
+      left: gasDebugLeft,
+      right: gasDebugRight
+    };
+
+    waterGeometry.syringes.forEach(syringe => {
+      const el = zones[syringe.key];
+      if (!el) return;
+
+      if (syringe.gas.height > 0) {
+        el.style.display = 'block';
+        el.style.left = `${syringe.gas.x}px`;
+        el.style.top = `${syringe.gas.y}px`;
+        el.style.width = `${syringe.gas.width}px`;
+        el.style.height = `${syringe.gas.height}px`;
+      } else {
+        el.style.display = 'none';
+      }
+    });
+  }
+
+
+  function updateSyringeWaterLevelsSmoothly() {
+    Object.values(syringeState).forEach(s => {
+      const diff = s.targetWaterFraction - s.waterFraction;
+      if (Math.abs(diff) < 0.0008) {
+        s.waterFraction = s.targetWaterFraction;
+      } else {
+        s.waterFraction += diff * 0.06;
+      }
+    });
+    updateSyringeVisuals();
+  }
+
+  function getWaterGeometry() {
+    const sceneRect = scene.getBoundingClientRect();
+
+    const tubRect = document.getElementById('tub').getBoundingClientRect();
+    const waterFraction = 0.66666;
+    const tubWall = 8;
+
+    const tub = {
+      x: scaledSceneDelta(tubRect.left - sceneRect.left) + tubWall,
+      y: scaledSceneDelta(tubRect.top - sceneRect.top) + scaledSceneDelta(tubRect.height) * (1 - waterFraction) + 2,
+      width: scaledSceneDelta(tubRect.width) - tubWall * 2,
+      height: scaledSceneDelta(tubRect.height) * waterFraction - tubWall
+    };
+
+    const syringeDefs = [
+      { key: 'left', el: leftSyringe },
+      { key: 'right', el: rightSyringe }
+    ];
+
+    const syringes = syringeDefs.map(item => {
+      const r = item.el.getBoundingClientRect();
+
+      const outer = {
+        x: scaledSceneDelta(r.left - sceneRect.left),
+        y: scaledSceneDelta(r.top - sceneRect.top),
+        width: scaledSceneDelta(r.width),
+        height: scaledSceneDelta(r.height)
+      };
+
+      const wall = 10;
+      const closedTop = 10;
+      const openBottom = 0;
+      const fullInnerHeight = outer.height - closedTop - openBottom;
+      const segmentHeight = fullInnerHeight / 9;
+
+      const waterFrac = syringeState[item.key].waterFraction;
+      const currentWaterHeight = fullInnerHeight * waterFrac;
+      const gasHeight = fullInnerHeight - currentWaterHeight;
+
+      const inner = {
+        x: outer.x + wall,
+        y: outer.y + closedTop + gasHeight,
+        width: outer.width - wall * 2,
+        height: currentWaterHeight
+      };
+
+      const gas = {
+        x: outer.x + wall,
+        y: outer.y + closedTop,
+        width: outer.width - wall * 2,
+        height: gasHeight
+      };
+
+      return { key: item.key, outer, inner, gas, wall, closedTop, fullInnerHeight, segmentHeight };
+    });
+
+    return { tub, syringes };
+  }
+
+  function getLockedTopSegmentsForSyringe(key) {
+    return Math.floor(syringeState[key].trappedH2 || 0);
+  }
+
+  function getTopLockBoundaryY(syringe) {
+    const lockedSegments = getLockedTopSegmentsForSyringe(syringe.key);
+    if (lockedSegments <= 0) return null;
+    return syringe.outer.y + syringe.closedTop + syringe.segmentHeight * lockedSegments;
+  }
+
+  function getAtomRetentionLineY(syringe) {
+    return syringe.outer.y + syringe.closedTop + syringe.fullInnerHeight * 0.75;
+  }
+
+  function applySyringeAtomRetentionLine(particle) {
+    if (particle.kind !== 'hydrogenAtom' && particle.kind !== 'oxygenAtom') return;
+    if (!waterGeometry || !waterGeometry.syringes) return;
+
+    const radius = particle.r || particle.collisionRadius || 3;
+
+    for (const syringe of waterGeometry.syringes) {
+      const insideColumn =
+        particle.x >= syringe.inner.x + radius &&
+        particle.x <= syringe.inner.x + syringe.inner.width - radius &&
+        particle.y >= syringe.outer.y + syringe.closedTop &&
+        particle.y <= syringe.outer.y + syringe.outer.height;
+
+      if (!insideColumn) continue;
+
+      const lineY = getAtomRetentionLineY(syringe);
+      if (particle.y + radius > lineY) {
+        particle.y = lineY - radius - 0.6;
+        particle.vy = -Math.abs(particle.vy) * 0.88;
+        particle.vx += (Math.random() - 0.5) * 0.035;
+        ensureMinimumVelocity(particle, 0.03);
+        registerWallHit(particle);
+      }
+
+      return;
+    }
+  }
+
+  function drawSyringeAtomRetentionLines() {
+    if (!waterGeometry || !waterGeometry.syringes) return;
+
+    ctx.save();
+    ctx.strokeStyle = 'rgba(122, 79, 197, 0.45)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 4]);
+
+    for (const syringe of waterGeometry.syringes) {
+      const y = getAtomRetentionLineY(syringe);
+      ctx.beginPath();
+      ctx.moveTo(syringe.inner.x + 2, y);
+      ctx.lineTo(syringe.inner.x + syringe.inner.width - 2, y);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  }
+
+  function getParticleAtoms(particle) {
+    if (typeof particle.getAtomPositions === 'function') {
+      return particle.getAtomPositions();
+    }
+    return [{ x: particle.x, y: particle.y, r: particle.collisionRadius || 3 }];
+  }
+
+  function getContainingSyringeColumn(particle) {
+    const atoms = getParticleAtoms(particle);
+    for (const syringe of waterGeometry.syringes) {
+      const allInsideX = atoms.every(atom => atom.x >= syringe.inner.x && atom.x <= syringe.inner.x + syringe.inner.width);
+      const anyInsideY = atoms.some(atom => atom.y >= syringe.outer.y + syringe.closedTop && atom.y <= syringe.outer.y + syringe.outer.height);
+      if (allInsideX && anyInsideY) return syringe;
+    }
+    return null;
+  }
+
+
+  function getSyringeForElectrode(el) {
+    if (el === leftElectrode) return waterGeometry?.syringes?.find(s => s.key === 'left') || null;
+    if (el === rightElectrode) return waterGeometry?.syringes?.find(s => s.key === 'right') || null;
+    return null;
+  }
+
+  function moleculeFullyInsideSyringeWaterForElectrode(particle, electrode) {
+    if (!particle || !electrode || !waterGeometry) return false;
+    const syringe = getSyringeForElectrode(electrode);
+    if (!syringe || syringe.inner.height <= 0) return false;
+
+    const atoms = getParticleAtoms(particle);
+    const pad = 1.2;
+    return atoms.every(atom => {
+      const r = atom.r || 0;
+      return (
+        atom.x - r >= syringe.inner.x + pad &&
+        atom.x + r <= syringe.inner.x + syringe.inner.width - pad &&
+        atom.y - r >= syringe.inner.y + pad &&
+        atom.y + r <= syringe.inner.y + syringe.inner.height - pad
+      );
+    });
+  }
+
+
+  function particleFullyInsideSyringeWater(particle, syringe, testX = particle?.x, testY = particle?.y) {
+    if (!particle || !syringe || !waterGeometry || syringe.inner.height <= 0) return false;
+    const originalX = particle.x;
+    const originalY = particle.y;
+    particle.x = testX;
+    particle.y = testY;
+    const atoms = getParticleAtoms(particle);
+    particle.x = originalX;
+    particle.y = originalY;
+
+    const pad = 1.2;
+    return atoms.every(atom => {
+      const r = atom.r || 0;
+      return (
+        atom.x - r >= syringe.inner.x + pad &&
+        atom.x + r <= syringe.inner.x + syringe.inner.width - pad &&
+        atom.y - r >= syringe.inner.y + pad &&
+        atom.y + r <= syringe.inner.y + syringe.inner.height - pad
+      );
+    });
+  }
+
+  function particleFullyInsideAnySyringeWater(particle, testX = particle?.x, testY = particle?.y) {
+    if (!particle || !waterGeometry || !waterGeometry.syringes) return false;
+    return waterGeometry.syringes.some(syringe => particleFullyInsideSyringeWater(particle, syringe, testX, testY));
+  }
+
+  function reactionProductsStayInsideElectrodeSyringe(products, electrode) {
+    const syringe = getSyringeForElectrode(electrode);
+    if (!syringe || !Array.isArray(products) || products.length === 0) return false;
+    return products.every(product => particleFullyInsideSyringeWater(product, syringe));
+  }
+
+  function clampParticleBelowPhaseBoundary(particle) {
+    if (particle.kind === 'hydrogenMolecule') return;
+    const syringe = getContainingSyringeColumn(particle);
+    if (!syringe) return;
+
+    const boundaryY = getTopLockBoundaryY(syringe);
+    if (boundaryY == null) return;
+
+    const atoms = getParticleAtoms(particle);
+    const topMost = Math.min(...atoms.map(a => a.y - a.r));
+    if (topMost >= boundaryY) return;
+
+    const pushDown = (boundaryY - topMost) + 1.5;
+    particle.y += pushDown;
+    particle.vy = Math.abs(particle.vy) + 0.2;
+  }
+
+  function pointInRect(px, py, rect) {
+    return px >= rect.x && px <= rect.x + rect.width && py >= rect.y && py <= rect.y + rect.height;
+  }
+
+  function gasMoleculeInSyringeColumn(particle, syringe) {
+    if (particle.kind !== 'hydrogenMolecule' && particle.kind !== 'oxygenMolecule') return false;
+    const atoms = particle.getAtomPositions();
+    return atoms.every(atom =>
+      atom.x >= syringe.inner.x &&
+      atom.x <= syringe.inner.x + syringe.inner.width &&
+      atom.y >= syringe.outer.y + syringe.closedTop &&
+      atom.y <= syringe.outer.y + syringe.outer.height
+    );
+  }
+
+
+  function pointInGasRegionForH2Only(px, py) {
+    for (const s of waterGeometry.syringes) {
+      if (s.gas.height > 0 && pointInRect(px, py, s.gas)) return s;
+    }
+    return null;
+  }
+
+  function pointInLockedTopGasBand(px, py, particleKind = 'water') {
+    for (const syringe of waterGeometry.syringes) {
+      const lockedSegments = getLockedTopSegmentsForSyringe(syringe.key);
+      if (lockedSegments <= 0) continue;
+
+      const topY = syringe.outer.y + syringe.closedTop;
+      const boundaryY = getTopLockBoundaryY(syringe);
+      const inHorizontalRange = px >= syringe.inner.x && px <= syringe.inner.x + syringe.inner.width;
+      const inLockedBand = py >= topY && py <= boundaryY;
+
+      if (inHorizontalRange && inLockedBand) {
+        return { syringe, allowed: particleKind === 'hydrogenMolecule' || particleKind === 'oxygenMolecule' };
+      }
+    }
+    return null;
+  }
+
+
+  function particleTouchesForbiddenGasBand(particle) {
+    if (particle.kind === 'hydrogenMolecule') return null;
+
+    const atoms = typeof particle.getAtomPositions === 'function'
+      ? particle.getAtomPositions()
+      : [{ x: particle.x, y: particle.y, r: particle.collisionRadius || 3 }];
+
+    for (const syringe of waterGeometry.syringes) {
+      const lockedSegments = getLockedTopSegmentsForSyringe(syringe.key);
+      if (lockedSegments <= 0) continue;
+
+      const topY = syringe.outer.y + syringe.closedTop;
+      const boundaryY = getTopLockBoundaryY(syringe);
+
+      for (const atom of atoms) {
+        const insideX = atom.x >= syringe.inner.x && atom.x <= syringe.inner.x + syringe.inner.width;
+        const overlapsBand = atom.y - atom.r < boundaryY && atom.y + atom.r > topY;
+        if (insideX && overlapsBand) {
+          return { syringe, boundaryY };
+        }
+      }
+    }
+    return null;
+  }
+
+  function pointInWater(px, py, particleKind = 'water', particle = null) {
+    const gasRegion = pointInGasRegionForH2Only(px, py);
+    if (gasRegion) {
+      const gasAllowed = particleKind === 'hydrogenMolecule' || particleKind === 'oxygenMolecule';
+      if (!gasAllowed) return false;
+      if (particle && particle.phase === 'gas') return particle.homeSyringe === gasRegion.key;
+      return true;
+    }
+
+    // Oberhalb der aktuellen Phasengrenze in einer Spritze dürfen nur H2-Moleküle sein.
+    for (const syringe of waterGeometry.syringes) {
+      const insideColumn = px >= syringe.inner.x && px <= syringe.inner.x + syringe.inner.width &&
+                           py >= syringe.outer.y + syringe.closedTop &&
+                           py <= syringe.outer.y + syringe.outer.height;
+      if (!insideColumn) continue;
+
+      const boundaryY = getTopLockBoundaryY(syringe);
+      if (boundaryY != null && py < boundaryY) {
+        return particleKind === 'hydrogenMolecule';
+      }
+    }
+
+    const inTub = pointInRect(px, py, waterGeometry.tub);
+    const inSyringeInner = waterGeometry.syringes.some(s => pointInRect(px, py, s.inner));
+
+    if (inSyringeInner) return true;
+    if (!inTub) return false;
+
+    for (const s of waterGeometry.syringes) {
+      const inOuter = pointInRect(px, py, s.outer);
+      const inInner = pointInRect(px, py, s.inner);
+      const inGas = pointInRect(px, py, s.gas);
+      if (inOuter && !inInner && !inGas) return false;
+    }
+
+    return true;
+  }
+
+  function isPointInAnyGasRegion(px, py) {
+    if (!waterGeometry || !waterGeometry.syringes) return false;
+    return waterGeometry.syringes.some(s => s.gas.height > 0 && pointInRect(px, py, s.gas));
+  }
+
+  function inGasRegionOfHomeSyringe(particle) {
+    if (!particle || particle.kind !== 'hydrogenMolecule' || !particle.homeSyringe) return false;
+    const syringe = waterGeometry.syringes.find(s => s.key === particle.homeSyringe);
+    return syringe ? pointInRect(particle.x, particle.y, syringe.gas) : false;
+  }
+
+  function updateParticlePhase(particle) {
+    if (particle.kind !== 'hydrogenMolecule' && particle.kind !== 'oxygenMolecule') return;
+
+    // Eintritt in vorhandenen Gasraum -> Gasphase der jeweiligen Spritze
+    if (particle.phase !== 'gas') {
+      for (const s of waterGeometry.syringes) {
+        if (s.gas.height > 0 && pointInRect(particle.x, particle.y, s.gas)) {
+          particle.phase = 'gas';
+          particle.homeSyringe = s.key;
+          break;
+        }
+      }
+    }
+
+    // Gasphasen-H2 bleibt in der Gaskammer der jeweiligen Spritze
+    if (particle.phase === 'gas' && particle.homeSyringe) {
+      const syringe = waterGeometry.syringes.find(s => s.key === particle.homeSyringe);
+      if (!syringe) return;
+
+      const minX = syringe.gas.x;
+      const maxX = syringe.gas.x + syringe.gas.width;
+      const minY = syringe.gas.y;
+      const maxY = syringe.gas.y + syringe.gas.height;
+
+      if (particle.x < minX) {
+        particle.x = minX + 1;
+        particle.vx = Math.abs(particle.vx) * 0.9;
+      }
+      if (particle.x > maxX) {
+        particle.x = maxX - 1;
+        particle.vx = -Math.abs(particle.vx) * 0.9;
+      }
+      if (particle.y < minY) {
+        particle.y = minY + 1;
+        particle.vy = Math.abs(particle.vy) * 0.9;
+      }
+      if (particle.y > maxY) {
+        particle.y = maxY - 1;
+        particle.vy = -Math.abs(particle.vy) * 0.9;
+      }
+    }
+  }
+
+  function applyLockedSegmentImpulse(particle) {
+    if (particle.kind === 'hydrogenMolecule' || particle.kind === 'oxygenMolecule') return;
+
+    const hit = particleTouchesForbiddenGasBand(particle);
+    if (!hit) return;
+
+    particle.vy = Math.abs(particle.vy) + 0.28;
+    particle.y = Math.max(particle.y, hit.boundaryY + 5);
+    particle.x += (Math.random() - 0.5) * 0.8;
+    addWallGlideJitter(particle, 0.05);
+    ensureMinimumVelocity(particle, 0.05);
+    registerWallHit(particle);
+  }
+
+  class WaterMolecule {
+    constructor(x, y) {
+      this.kind = 'water';
+      this.rO = 4.8;
+      this.rH = 3.1;
+      this.bond = this.rO + this.rH;
+      this.angle = (104.5 * Math.PI) / 180;
+      this.theta = Math.random() * Math.PI * 2;
+      this.omega = (Math.random() - 0.5) * 0.01;
+      this.x = x;
+      this.y = y;
+      this.vx = (Math.random() - 0.5) * 0.35;
+      this.vy = (Math.random() - 0.5) * 0.35;
+      if (Math.abs(this.vx) < 0.08) this.vx += this.vx >= 0 ? 0.12 : -0.12;
+      if (Math.abs(this.vy) < 0.08) this.vy += this.vy >= 0 ? 0.12 : -0.12;
+      this.collisionRadius = 9.5;
+      this.reactiveCooldown = Math.random() * 120;
+      this.reactionState = 'idle';
+      this.reactionStartedAt = 0;
+      this.reactionType = null;
+      this.reactionElectrode = null;
+      this.reactionContactPoint = null;
+      this.pendingProducts = null;
+      this.hydrationPartner = null;
+      this.hydrationSlot = -1;
+      this.hydrationStrength = 0;
+      initAntiStickState(this);
+    }
+
+    getAtomPositions(testX = this.x, testY = this.y, testTheta = this.theta) {
+      return [
+        { x: testX, y: testY, r: this.rO, color: '#d73a31' },
+        { x: testX + Math.cos(testTheta - this.angle / 2) * this.bond, y: testY + Math.sin(testTheta - this.angle / 2) * this.bond, r: this.rH, color: '#ffffff' },
+        { x: testX + Math.cos(testTheta + this.angle / 2) * this.bond, y: testY + Math.sin(testTheta + this.angle / 2) * this.bond, r: this.rH, color: '#ffffff' }
+      ];
+    }
+
+    fitsInWater(testX = this.x, testY = this.y, testTheta = this.theta) {
+      const atoms = this.getAtomPositions(testX, testY, testTheta);
+      return atoms.every(atom => pointInWater(atom.x, atom.y, this.kind, this));
+    }
+
+    touchesElectrode(el, extraRadius = 0) {
+      if (!el) return false;
+      const info = electrodeCollisionInfo(el);
+      const atoms = this.getAtomPositions();
+      return atoms.some(atom => {
+        const dx = atom.x - info.x;
+        const dy = atom.y - clamp(atom.y, info.yTop, info.yBottom);
+        return Math.hypot(dx, dy) <= info.radius + atom.r + extraRadius;
+      });
+    }
+
+    touchesCathodeReactiveZone(el, extraRadius = 18) {
+      if (!el) return false;
+      const segment = getElectrodeReactiveSegment(el);
+      const atoms = this.getAtomPositions();
+      return atoms.some(atom => {
+        const nearestY = clamp(atom.y, segment.yTop, segment.yBottom);
+        const dx = atom.x - segment.x;
+        const dy = atom.y - nearestY;
+        const closeEnough = Math.hypot(dx, dy) <= segment.radius + atom.r + extraRadius;
+        if (!closeEnough) return false;
+
+        // Reaktionen sollen entlang der eingetauchten Metallfläche möglich sein,
+        // aber nur dort, wo das Teilchen tatsächlich im wässrigen Bereich liegt.
+        return pointInWater(atom.x, atom.y, this.kind, this);
+      });
+    }
+
+    getCathodeReactionContactPoint(electrode) {
+      const atoms = this.getAtomPositions();
+      const referenceAtom = atoms.reduce((best, atom) => {
+        const point = nearestPointOnElectrodeSegment(electrode, atom.x, atom.y);
+        const d = Math.hypot(atom.x - point.x, atom.y - point.y);
+        return !best || d < best.distance ? { atom, point, distance: d } : best;
+      }, null);
+      return referenceAtom ? referenceAtom.point : nearestPointOnElectrodeSegment(electrode, this.x, this.y);
+    }
+
+    beginElectrodeReaction(type, electrode, contactPoint = null) {
+      this.hydrationPartner = null;
+      this.hydrationSlot = -1;
+      this.hydrationStrength = 0;
+      this.reactionState = 'waiting';
+      this.reactionStartedAt = getSimNow();
+      this.reactionType = type;
+      this.reactionElectrode = electrode;
+      this.reactionContactPoint = contactPoint;
+      this.pendingProducts = null;
+      this.vx = 0;
+      this.vy = 0;
+      this.omega = 0;
+      return null;
+    }
+
+    startCathodeElectronIntake() {
+      if (!moleculeFullyInsideSyringeWaterForElectrode(this, this.reactionElectrode)) {
+        this.resetReactionState();
+        return null;
+      }
+
+      if (!canCathodeConsumeElectron(this.reactionElectrode)) {
+        this.resetReactionState();
+        return null;
+      }
+
+      const cathodeState = getElectrodeElectronState(this.reactionElectrode);
+      const atoms = this.getAtomPositions();
+      const oxygen = atoms[0];
+      const h1 = atoms[1];
+      const h2 = atoms[2];
+      const splitHydrogen = Math.random() < 0.5 ? h1 : h2;
+      const hydroxylHydrogen = splitHydrogen === h1 ? h2 : h1;
+
+      const hAtom = new HydrogenAtom(splitHydrogen.x, splitHydrogen.y, this.vx - 0.18, this.vy + (Math.random() - 0.5) * 0.12);
+      const ohIon = new HydroxideIon(
+        oxygen.x,
+        oxygen.y,
+        hydroxylHydrogen.x - oxygen.x,
+        hydroxylHydrogen.y - oxygen.y,
+        this.vx + 0.12,
+        this.vy + (Math.random() - 0.5) * 0.08
+      );
+      const products = [hAtom, ohIon];
+
+      // Vor der Elektronenanimation prüfen: Produkte dürfen ausschließlich in der Spritze entstehen.
+      if (!reactionProductsStayInsideElectrodeSyringe(products, this.reactionElectrode)) {
+        this.resetReactionState();
+        return null;
+      }
+
+      const start = this.reactionContactPoint || this.getCathodeReactionContactPoint(this.reactionElectrode);
+      const target = { x: this.x, y: this.y };
+      spawnWaterReactionElectronTransfer(start, target);
+
+      const consumed = consumeBottomCathodeElectron(this.reactionElectrode);
+      if (!consumed) {
+        this.resetReactionState();
+        return null;
+      }
+
+      this.pendingProducts = products;
+      this.reactionState = 'transferring';
+      this.reactionStartedAt = getSimNow();
+      return null;
+    }
+
+    startAnodeElectronRelease() {
+      if (!moleculeFullyInsideSyringeWaterForElectrode(this, this.reactionElectrode)) {
+        this.resetReactionState();
+        return null;
+      }
+
+      if (!canAnodeReact(this.reactionElectrode)) {
+        this.resetReactionState();
+        return null;
+      }
+
+      const anodeElectrode = this.reactionElectrode;
+      const anodeState = getElectrodeElectronState(anodeElectrode);
+      const atoms = this.getAtomPositions();
+      const oxygen = atoms[0];
+      const h1 = atoms[1];
+      const h2 = atoms[2];
+
+      const products = [
+        new OxygenAtom(
+          oxygen.x,
+          oxygen.y,
+          this.vx + (Math.random() - 0.5) * 0.08,
+          this.vy + (Math.random() - 0.5) * 0.08
+        ),
+        new HydrogenCation(
+          h1.x,
+          h1.y,
+          this.vx + (Math.random() - 0.5) * 0.12,
+          this.vy + (Math.random() - 0.5) * 0.12
+        ),
+        new HydrogenCation(
+          h2.x,
+          h2.y,
+          this.vx + (Math.random() - 0.5) * 0.12,
+          this.vy + (Math.random() - 0.5) * 0.12
+        )
+      ];
+
+      // Auch an der Anode dürfen freie O-/H+-Produkte nur in der Spritze entstehen.
+      if (!reactionProductsStayInsideElectrodeSyringe(products, anodeElectrode)) {
+        this.resetReactionState();
+        return null;
+      }
+
+      const startedPopulation = beginAnodeElectronPopulation(anodeElectrode);
+      if (!startedPopulation) {
+        this.resetReactionState();
+        return null;
+      }
+
+      // Harte Kopplung: Die sichtbaren Elektronenflüge an der Anode werden nur
+      // gestartet, nachdem die Zerfallsprodukte fest angelegt wurden. Dadurch
+      // kann kein Wassermolekül Elektronen abgeben und als Wasser blockiert bleiben.
+      const target1 = anodeState
+        ? getElectrodePriorityTransferTarget(anodeState, 1)
+        : electrodeTipPoint(anodeElectrode);
+      const target2 = anodeState
+        ? getElectrodePriorityTransferTarget(anodeState, 2)
+        : electrodeTipPoint(anodeElectrode);
+
+      spawnWaterReactionElectronTransfer(h1, target1, {
+        radius: 7,
+        onComplete: () => materializePendingAnodeElectron(anodeElectrode, 0)
+      });
+      spawnWaterReactionElectronTransfer(h2, target2, {
+        radius: 7,
+        onComplete: () => materializePendingAnodeElectron(anodeElectrode, 1)
+      });
+
+      this.resetReactionState();
+      return products;
+    }
+
+    resetReactionState() {
+      this.reactionState = 'idle';
+      this.reactionStartedAt = 0;
+      this.reactionType = null;
+      this.reactionElectrode = null;
+      this.reactionContactPoint = null;
+      this.pendingProducts = null;
+      this.omega = (Math.random() - 0.5) * 0.01;
+    }
+
+    maybeReact() {
+      const now = getSimNow();
+
+      if (this.reactionState === 'waiting') {
+        if (now - this.reactionStartedAt >= WATER_REACTION_PAUSE_MS) {
+          if (this.reactionType === 'anode') return this.startAnodeElectronRelease();
+          if (this.reactionType === 'cathode') return this.startCathodeElectronIntake();
+          this.resetReactionState();
+        }
+        return null;
+      }
+
+      if (this.reactionState === 'transferring') {
+        if (now - this.reactionStartedAt >= WATER_ELECTRON_TRANSFER_MS) {
+          const products = this.pendingProducts;
+          this.resetReactionState();
+          return products;
+        }
+        return null;
+      }
+
+      if (this.reactiveCooldown > 0) {
+        this.reactiveCooldown -= 1;
+        return null;
+      }
+
+      const plusElectrode = getPlusElectrode();
+      const moleculeInsidePlusSyringe = plusElectrode && moleculeFullyInsideSyringeWaterForElectrode(this, plusElectrode);
+      const touchesPlusElectrode = moleculeInsidePlusSyringe && this.touchesElectrode(plusElectrode, 10);
+      if (plusElectrode && moleculeInsidePlusSyringe && touchesPlusElectrode && canAnodeReact(plusElectrode)) {
+        return this.beginElectrodeReaction('anode', plusElectrode);
+      }
+
+      const minusElectrode = getMinusElectrode();
+      const moleculeInsideMinusSyringe = minusElectrode && moleculeFullyInsideSyringeWaterForElectrode(this, minusElectrode);
+      if (minusElectrode && moleculeInsideMinusSyringe && this.touchesCathodeReactiveZone(minusElectrode)) {
+        if (!canCathodeConsumeElectron(minusElectrode)) return null;
+        const contactPoint = this.getCathodeReactionContactPoint(minusElectrode);
+        return this.beginElectrodeReaction('cathode', minusElectrode, contactPoint);
+      }
+      return null;
+    }
+
+    update() {
+      if (this.reactionState === 'waiting' || this.reactionState === 'transferring') {
+        return this.maybeReact();
+      }
+
+      const nextTheta = this.theta + this.omega;
+
+      const oldX = this.x;
+      const oldY = this.y;
+
+      const tryX = this.x + this.vx;
+      if (this.fitsInWater(tryX, this.y, nextTheta)) {
+        this.x = tryX;
+      } else {
+        this.x = oldX;
+        this.vx *= -0.9;
+        registerWallHit(this);
+      }
+
+      const tryY = this.y + this.vy;
+      if (this.fitsInWater(this.x, tryY, nextTheta)) {
+        this.y = tryY;
+      } else {
+        this.y = oldY;
+        this.vy *= -0.9;
+        registerWallHit(this);
+      }
+
+      if (this.fitsInWater(this.x, this.y, nextTheta)) {
+        this.theta = nextTheta;
+      } else {
+        this.omega *= -1;
+        this.theta += this.omega;
+      }
+
+      if (this.theta > Math.PI * 2) this.theta -= Math.PI * 2;
+      if (this.theta < 0) this.theta += Math.PI * 2;
+
+      applyLockedSegmentImpulse(this);
+      ensureMinimumVelocity(this, 0.035);
+      updateAntiStickState(this);
+      return this.maybeReact();
+    }
+
+    draw(ctx) {
+      const atoms = this.getAtomPositions();
+
+      atoms.forEach((atom, idx) => {
+        ctx.beginPath();
+        ctx.fillStyle = atom.color;
+        ctx.arc(atom.x, atom.y, atom.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.lineWidth = 0.5;
+        ctx.strokeStyle = 'rgba(40, 55, 75, 0.15)';
+        ctx.beginPath();
+        ctx.arc(atom.x, atom.y, atom.r, 0, Math.PI * 2);
+        ctx.stroke();
+
+        if (idx === 0) {
+          ctx.fillStyle = 'rgba(40, 80, 180, 0.95)';
+          ctx.font = 'bold 9px Arial';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          
+        }
+      });
+    }
+  }
+
+  class HydrogenAtom {
+    constructor(x, y, vx, vy) {
+      this.kind = 'hydrogenAtom';
+      this.x = x;
+      this.y = y;
+      this.vx = vx;
+      this.vy = vy;
+      this.r = 2.7;
+      this.collisionRadius = this.r * 3;
+      this.wobble = Math.random() * Math.PI * 2;
+      initAntiStickState(this);
+    }
+
+    fitsInWater(testX = this.x, testY = this.y) {
+      return pointInWater(testX, testY, this.kind, this);
+    }
+
+    update() {
+      this.wobble += 0.08;
+      const driftX = Math.cos(this.wobble) * 0.015;
+      const driftY = Math.sin(this.wobble) * 0.015;
+
+      const oldX = this.x;
+      const oldY = this.y;
+
+      const tryX = this.x + this.vx + driftX;
+      if (this.fitsInWater(tryX, this.y)) {
+        this.x = tryX;
+      } else {
+        this.x = oldX;
+        this.vx *= -0.9;
+        registerWallHit(this);
+      }
+
+      const tryY = this.y + this.vy + driftY;
+      if (this.fitsInWater(this.x, tryY)) {
+        this.y = tryY;
+      } else {
+        this.y = oldY;
+        this.vy *= -0.9;
+        registerWallHit(this);
+      }
+
+      applyLockedSegmentImpulse(this);
+      applySyringeAtomRetentionLine(this);
+      ensureMinimumVelocity(this, 0.04);
+      updateAntiStickState(this);
+      return null;
+    }
+
+    draw(ctx) {
+      ctx.beginPath();
+      ctx.fillStyle = '#ffffff';
+      ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.lineWidth = 0.5;
+      ctx.strokeStyle = 'rgba(40, 55, 75, 0.15)';
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
+
+  class HydrogenMolecule {
+    constructor(x, y, vx, vy) {
+      this.kind = 'hydrogenMolecule';
+      this.x = x;
+      this.y = y;
+      this.vx = vx;
+      this.vy = vy;
+      this.r = 3;
+      this.bond = 6;
+      this.theta = Math.random() * Math.PI * 2;
+      this.spin = (Math.random() - 0.5) * 0.05;
+      this.collisionRadius = 8;
+      this.driftPhase = Math.random() * Math.PI * 2;
+      this.phase = 'liquid';
+      this.homeSyringe = null;
+      this.buoyancy = 0.012;
+      initAntiStickState(this);
+    }
+
+    getAtomPositions(testX = this.x, testY = this.y, testTheta = this.theta) {
+      return [
+        { x: testX + Math.cos(testTheta) * this.bond * 0.5, y: testY + Math.sin(testTheta) * this.bond * 0.5, r: this.r, color: '#ffffff' },
+        { x: testX - Math.cos(testTheta) * this.bond * 0.5, y: testY - Math.sin(testTheta) * this.bond * 0.5, r: this.r, color: '#ffffff' }
+      ];
+    }
+
+    fitsInWater(testX = this.x, testY = this.y, testTheta = this.theta) {
+      const atoms = this.getAtomPositions(testX, testY, testTheta);
+      return atoms.every(a => pointInWater(a.x, a.y, this.kind, this));
+    }
+
+    update() {
+      const nextTheta = this.theta + this.spin;
+
+      this.driftPhase += 0.05;
+      this.vx += Math.cos(this.driftPhase) * 0.008;
+      this.vy += Math.sin(this.driftPhase * 0.7) * 0.002;
+
+      // In der Flüssigkeit erhält H2 leichten Auftrieb und findet so den Gasraum.
+      if (this.phase === 'liquid') {
+        this.vy -= this.buoyancy;
+
+        // Seitliche Zentrierung zur jeweiligen Spritzenachse, damit H2 in den Spritzenhals findet.
+        for (const syringe of waterGeometry.syringes) {
+          const insideSyringeColumn =
+            this.x >= syringe.inner.x && this.x <= syringe.inner.x + syringe.inner.width &&
+            this.y >= syringe.outer.y + syringe.closedTop &&
+            this.y <= syringe.outer.y + syringe.outer.height;
+
+          if (insideSyringeColumn) {
+            const centerX = syringe.inner.x + syringe.inner.width / 2;
+            this.vx += (centerX - this.x) * 0.0008;
+            break;
+          }
+        }
+      }
+
+      this.vx *= 0.997;
+      this.vy *= 0.997;
+      this.vx = Math.max(-0.45, Math.min(0.45, this.vx));
+      this.vy = Math.max(-0.55, Math.min(0.55, this.vy));
+
+      const oldX = this.x;
+      const oldY = this.y;
+
+      const tryX = this.x + this.vx;
+      if (this.fitsInWater(tryX, this.y, nextTheta)) {
+        this.x = tryX;
+      } else {
+        this.x = oldX;
+        this.vx *= -0.9;
+        registerWallHit(this);
+      }
+
+      const tryY = this.y + this.vy;
+      if (this.fitsInWater(this.x, tryY, nextTheta)) {
+        this.y = tryY;
+      } else {
+        this.y = oldY;
+        this.vy *= -0.9;
+        registerWallHit(this);
+      }
+
+      if (this.fitsInWater(this.x, this.y, nextTheta)) {
+        this.theta = nextTheta;
+      } else {
+        this.spin *= -1;
+      }
+
+      updateParticlePhase(this);
+      ensureMinimumVelocity(this, 0.03);
+      updateAntiStickState(this);
+      return null;
+    }
+
+    draw(ctx) {
+      this.getAtomPositions().forEach(atom => {
+        ctx.beginPath();
+        ctx.fillStyle = atom.color;
+        ctx.arc(atom.x, atom.y, atom.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.lineWidth = 0.5;
+        ctx.strokeStyle = 'rgba(40, 55, 75, 0.15)';
+        ctx.beginPath();
+        ctx.arc(atom.x, atom.y, atom.r, 0, Math.PI * 2);
+        ctx.stroke();
+
+        if (atom.charge) {
+          ctx.fillStyle = atom.charge === '−' ? 'rgba(50, 70, 180, 0.95)' : 'rgba(180, 40, 40, 0.95)';
+          ctx.font = 'bold 9px Arial';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(atom.charge, atom.x, atom.y + 0.2);
+        }
+      });
+    }
+  }
+
+
+
+
+  class OxoniumIon {
+    constructor(x, y, theta, vx, vy) {
+      this.kind = 'oxoniumIon';
+      this.x = x;
+      this.y = y;
+      this.theta = theta;
+      this.vx = vx;
+      this.vy = vy;
+      this.rO = 5.0;
+      this.rH = 3.1;
+      this.bond = this.rO + this.rH;
+      this.collisionRadius = 11.5;
+      this.spin = (Math.random() - 0.5) * 0.025;
+      initAntiStickState(this);
+    }
+
+    getAtomPositions(testX = this.x, testY = this.y, testTheta = this.theta) {
+      const sep = (2 * Math.PI) / 3;
+      return [
+        { x: testX, y: testY, r: this.rO, color: '#d73a31', charge: '+' },
+        { x: testX + Math.cos(testTheta) * this.bond, y: testY + Math.sin(testTheta) * this.bond, r: this.rH, color: '#ffffff' },
+        { x: testX + Math.cos(testTheta + sep) * this.bond, y: testY + Math.sin(testTheta + sep) * this.bond, r: this.rH, color: '#ffffff' },
+        { x: testX + Math.cos(testTheta - sep) * this.bond, y: testY + Math.sin(testTheta - sep) * this.bond, r: this.rH, color: '#ffffff' }
+      ];
+    }
+
+    fitsInWater(testX = this.x, testY = this.y, testTheta = this.theta) {
+      const atoms = this.getAtomPositions(testX, testY, testTheta);
+      return atoms.every(atom => pointInWater(atom.x, atom.y, this.kind, this));
+    }
+
+    update() {
+      const nextTheta = this.theta + this.spin;
+      const oldX = this.x;
+      const oldY = this.y;
+
+      const tryX = this.x + this.vx;
+      if (this.fitsInWater(tryX, this.y, nextTheta)) {
+        this.x = tryX;
+      } else {
+        this.x = oldX;
+        this.vx *= -0.9;
+        registerWallHit(this);
+      }
+
+      const tryY = this.y + this.vy;
+      if (this.fitsInWater(this.x, tryY, nextTheta)) {
+        this.y = tryY;
+      } else {
+        this.y = oldY;
+        this.vy *= -0.9;
+        registerWallHit(this);
+      }
+
+      if (this.fitsInWater(this.x, this.y, nextTheta)) {
+        this.theta = nextTheta;
+      } else {
+        this.spin *= -1;
+      }
+
+      applyLockedSegmentImpulse(this);
+      ensureMinimumVelocity(this, 0.035);
+      updateAntiStickState(this);
+      return null;
+    }
+
+    draw(ctx) {
+      const atoms = this.getAtomPositions();
+      atoms.forEach((atom, idx) => {
+        ctx.beginPath();
+        ctx.fillStyle = atom.color;
+        ctx.arc(atom.x, atom.y, atom.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.lineWidth = 0.5;
+        ctx.strokeStyle = 'rgba(40, 55, 75, 0.18)';
+        ctx.beginPath();
+        ctx.arc(atom.x, atom.y, atom.r, 0, Math.PI * 2);
+        ctx.stroke();
+
+        if (idx === 0) {
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
+          ctx.lineWidth = 2.1;
+          ctx.font = 'bold 11px Arial';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.strokeText('+', atom.x, atom.y + 0.2);
+          ctx.fillStyle = 'rgba(205, 20, 20, 1)';
+          ctx.fillText('+', atom.x, atom.y + 0.2);
+        }
+      });
+    }
+  }
+
+  class HydrogenCation {
+    constructor(x, y, vx, vy) {
+      this.kind = 'hydrogenCation';
+      this.x = x;
+      this.y = y;
+      this.vx = vx;
+      this.vy = vy;
+      this.r = 2.9;
+      this.collisionRadius = this.r * 3;
+      this.wobble = Math.random() * Math.PI * 2;
+      initAntiStickState(this);
+    }
+
+    fitsInWater(testX = this.x, testY = this.y) {
+      return pointInWater(testX, testY, this.kind, this);
+    }
+
+    update() {
+      this.wobble += 0.08;
+      const driftX = Math.cos(this.wobble) * 0.014;
+      const driftY = Math.sin(this.wobble) * 0.014;
+
+      const oldX = this.x;
+      const oldY = this.y;
+
+      const tryX = this.x + this.vx + driftX;
+      if (this.fitsInWater(tryX, this.y)) {
+        this.x = tryX;
+      } else {
+        this.x = oldX;
+        this.vx *= -0.9;
+        registerWallHit(this);
+      }
+
+      const tryY = this.y + this.vy + driftY;
+      if (this.fitsInWater(this.x, tryY)) {
+        this.y = tryY;
+      } else {
+        this.y = oldY;
+        this.vy *= -0.9;
+        registerWallHit(this);
+      }
+
+      applyLockedSegmentImpulse(this);
+      ensureMinimumVelocity(this, 0.04);
+      updateAntiStickState(this);
+      return null;
+    }
+
+    draw(ctx) {
+      ctx.beginPath();
+      ctx.fillStyle = '#ffffff';
+      ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.lineWidth = 0.5;
+      ctx.strokeStyle = 'rgba(40, 55, 75, 0.18)';
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.fillStyle = 'rgba(180, 40, 40, 0.95)';
+      ctx.font = 'bold 8px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('+', this.x, this.y + 0.2);
+    }
+  }
+
+  class OxygenAtom {
+    constructor(x, y, vx, vy) {
+      this.kind = 'oxygenAtom';
+      this.x = x;
+      this.y = y;
+      this.vx = vx;
+      this.vy = vy;
+      this.r = 4.2;
+      this.collisionRadius = this.r * 2.4;
+      this.wobble = Math.random() * Math.PI * 2;
+      initAntiStickState(this);
+    }
+
+    fitsInWater(testX = this.x, testY = this.y) {
+      return pointInWater(testX, testY, this.kind, this);
+    }
+
+    update() {
+      this.wobble += 0.06;
+      const driftX = Math.cos(this.wobble) * 0.012;
+      const driftY = Math.sin(this.wobble) * 0.012;
+
+      const oldX = this.x;
+      const oldY = this.y;
+
+      const tryX = this.x + this.vx + driftX;
+      if (this.fitsInWater(tryX, this.y)) {
+        this.x = tryX;
+      } else {
+        this.x = oldX;
+        this.vx *= -0.9;
+        registerWallHit(this);
+      }
+
+      const tryY = this.y + this.vy + driftY;
+      if (this.fitsInWater(this.x, tryY)) {
+        this.y = tryY;
+      } else {
+        this.y = oldY;
+        this.vy *= -0.9;
+        registerWallHit(this);
+      }
+
+      applyLockedSegmentImpulse(this);
+      applySyringeAtomRetentionLine(this);
+      ensureMinimumVelocity(this, 0.03);
+      updateAntiStickState(this);
+      return null;
+    }
+
+    draw(ctx) {
+      ctx.beginPath();
+      ctx.fillStyle = '#d73a31';
+      ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.lineWidth = 0.5;
+      ctx.strokeStyle = 'rgba(40, 55, 75, 0.15)';
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
+
+  class OxygenMolecule {
+    constructor(x, y, vx, vy) {
+      this.kind = 'oxygenMolecule';
+      this.x = x;
+      this.y = y;
+      this.vx = vx;
+      this.vy = vy;
+      this.r = 4.2;
+      this.bond = 8.4;
+      this.theta = Math.random() * Math.PI * 2;
+      this.spin = (Math.random() - 0.5) * 0.05;
+      this.collisionRadius = 10;
+      this.phase = 'liquid';
+      this.homeSyringe = null;
+      this.buoyancy = 0.012;
+      this.driftPhase = Math.random() * Math.PI * 2;
+      initAntiStickState(this);
+    }
+
+    getAtomPositions(testX = this.x, testY = this.y, testTheta = this.theta) {
+      return [
+        { x: testX + Math.cos(testTheta) * this.bond * 0.5, y: testY + Math.sin(testTheta) * this.bond * 0.5, r: this.r, color: '#d73a31' },
+        { x: testX - Math.cos(testTheta) * this.bond * 0.5, y: testY - Math.sin(testTheta) * this.bond * 0.5, r: this.r, color: '#d73a31' }
+      ];
+    }
+
+    fitsInWater(testX = this.x, testY = this.y, testTheta = this.theta) {
+      const atoms = this.getAtomPositions(testX, testY, testTheta);
+      return atoms.every(a => pointInWater(a.x, a.y, this.kind, this));
+    }
+
+    update() {
+      const nextTheta = this.theta + this.spin;
+
+      this.driftPhase += 0.05;
+      this.vx += Math.cos(this.driftPhase) * 0.008;
+      this.vy += Math.sin(this.driftPhase * 0.7) * 0.002;
+
+      if (this.phase === 'liquid') {
+        this.vy -= this.buoyancy;
+
+        for (const syringe of waterGeometry.syringes) {
+          const insideSyringeColumn =
+            this.x >= syringe.inner.x && this.x <= syringe.inner.x + syringe.inner.width &&
+            this.y >= syringe.outer.y + syringe.closedTop &&
+            this.y <= syringe.outer.y + syringe.outer.height;
+
+          if (insideSyringeColumn) {
+            const centerX = syringe.inner.x + syringe.inner.width / 2;
+            this.vx += (centerX - this.x) * 0.0008;
+            break;
+          }
+        }
+      }
+
+      this.vx *= 0.997;
+      this.vy *= 0.997;
+      this.vx = Math.max(-0.45, Math.min(0.45, this.vx));
+      this.vy = Math.max(-0.55, Math.min(0.55, this.vy));
+
+      const oldX = this.x;
+      const oldY = this.y;
+
+      const tryX = this.x + this.vx;
+      if (this.fitsInWater(tryX, this.y, nextTheta)) {
+        this.x = tryX;
+      } else {
+        this.x = oldX;
+        this.vx *= -0.9;
+        registerWallHit(this);
+      }
+
+      const tryY = this.y + this.vy;
+      if (this.fitsInWater(this.x, tryY, nextTheta)) {
+        this.y = tryY;
+      } else {
+        this.y = oldY;
+        this.vy *= -0.9;
+        registerWallHit(this);
+      }
+
+      if (this.fitsInWater(this.x, this.y, nextTheta)) {
+        this.theta = nextTheta;
+      } else {
+        this.spin *= -1;
+      }
+
+      updateParticlePhase(this);
+      ensureMinimumVelocity(this, 0.03);
+      updateAntiStickState(this);
+      return null;
+    }
+
+    draw(ctx) {
+      this.getAtomPositions().forEach(atom => {
+        ctx.beginPath();
+        ctx.fillStyle = atom.color;
+        ctx.arc(atom.x, atom.y, atom.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.lineWidth = 0.5;
+        ctx.strokeStyle = 'rgba(40, 55, 75, 0.15)';
+        ctx.beginPath();
+        ctx.arc(atom.x, atom.y, atom.r, 0, Math.PI * 2);
+        ctx.stroke();
+      });
+    }
+  }
+
+  class HydroxideIon {
+    constructor(x, y, hx, hy, vx, vy) {
+      this.kind = 'hydroxide';
+      this.x = x;
+      this.y = y;
+      this.vx = vx;
+      this.vy = vy;
+      this.rO = 4.2;
+      this.rH = 2.7;
+      this.hx = hx;
+      this.hy = hy;
+      this.collisionRadius = 7.8;
+      this.spin = (Math.random() - 0.5) * 0.03;
+      initAntiStickState(this);
+    }
+
+    getAtomPositions(testX = this.x, testY = this.y, hx = this.hx, hy = this.hy) {
+      return [
+        { x: testX, y: testY, r: this.rO, color: '#d73a31', charge: '−' },
+        { x: testX + hx, y: testY + hy, r: this.rH, color: '#ffffff' }
+      ];
+    }
+
+    fitsInWater(testX = this.x, testY = this.y, hx = this.hx, hy = this.hy) {
+      const atoms = this.getAtomPositions(testX, testY, hx, hy);
+      return atoms.every(atom => pointInWater(atom.x, atom.y, this.kind, this));
+    }
+
+    update() {
+      const cos = Math.cos(this.spin);
+      const sin = Math.sin(this.spin);
+      const nextHx = this.hx * cos - this.hy * sin;
+      const nextHy = this.hx * sin + this.hy * cos;
+
+      const oldX = this.x;
+      const oldY = this.y;
+
+      const tryX = this.x + this.vx;
+      if (this.fitsInWater(tryX, this.y, nextHx, nextHy)) {
+        this.x = tryX;
+      } else {
+        this.x = oldX;
+        this.vx *= -0.9;
+        registerWallHit(this);
+      }
+
+      const tryY = this.y + this.vy;
+      if (this.fitsInWater(this.x, tryY, nextHx, nextHy)) {
+        this.y = tryY;
+      } else {
+        this.y = oldY;
+        this.vy *= -0.9;
+        registerWallHit(this);
+      }
+
+      if (this.fitsInWater(this.x, this.y, nextHx, nextHy)) {
+        this.hx = nextHx;
+        this.hy = nextHy;
+      } else {
+        this.spin *= -1;
+      }
+
+      applyLockedSegmentImpulse(this);
+      ensureMinimumVelocity(this, 0.035);
+      updateAntiStickState(this);
+      return null;
+    }
+
+    draw(ctx) {
+      this.getAtomPositions().forEach(atom => {
+        ctx.beginPath();
+        ctx.fillStyle = atom.color;
+        ctx.arc(atom.x, atom.y, atom.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.lineWidth = 0.5;
+        ctx.strokeStyle = 'rgba(40, 55, 75, 0.15)';
+        ctx.beginPath();
+        ctx.arc(atom.x, atom.y, atom.r, 0, Math.PI * 2);
+        ctx.stroke();
+
+        if (atom.charge && !isPointInAnyGasRegion(atom.x, atom.y)) {
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+          ctx.lineWidth = 1.8;
+          ctx.font = 'bold 10px Arial';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.strokeText(atom.charge, atom.x, atom.y + 0.2);
+          ctx.fillStyle = 'rgba(50, 70, 180, 1)';
+          ctx.fillText(atom.charge, atom.x, atom.y + 0.2);
+        }
+      });
+    }
+  }
+
+  function pointInSpawnSafeWater(px, py) {
+    if (!pointInWater(px, py, 'water')) return false;
+
+    const spawnMarginY = 18;
+    const wallMargin = 10;
+
+    for (const syringe of waterGeometry.syringes) {
+      const insideColumn =
+        px >= syringe.inner.x + wallMargin &&
+        px <= syringe.inner.x + syringe.inner.width - wallMargin &&
+        py >= syringe.inner.y + wallMargin &&
+        py <= syringe.inner.y + syringe.inner.height - wallMargin;
+
+      if (!insideColumn) continue;
+
+      const retentionLineY = getAtomRetentionLineY(syringe);
+      if (Math.abs(py - retentionLineY) < spawnMarginY) return false;
+
+      const boundaryY = getTopLockBoundaryY(syringe);
+      if (boundaryY != null && Math.abs(py - boundaryY) < spawnMarginY) return false;
+    }
+
+    return true;
+  }
+
+  function randomPointInWater(existingPoints = []) {
+    const tub = waterGeometry.tub;
+    const minSpawnDistance = 14;
+
+    const sampleZones = [
+      {
+        weight: 0.6,
+        rect: {
+          x: tub.x + 12,
+          y: tub.y + 12,
+          width: Math.max(20, tub.width - 24),
+          height: Math.max(20, tub.height - 24)
+        }
+      },
+      ...waterGeometry.syringes.map(syringe => ({
+        weight: 0.2,
+        rect: {
+          x: syringe.inner.x + 10,
+          y: syringe.inner.y + 14,
+          width: Math.max(12, syringe.inner.width - 20),
+          height: Math.max(12, syringe.inner.height - 28)
+        }
+      }))
+    ];
+
+    const totalWeight = sampleZones.reduce((sum, zone) => sum + zone.weight, 0);
+
+    for (let i = 0; i < 7000; i++) {
+      let pick = Math.random() * totalWeight;
+      let zone = sampleZones[0];
+      for (const candidate of sampleZones) {
+        pick -= candidate.weight;
+        if (pick <= 0) {
+          zone = candidate;
+          break;
+        }
+      }
+
+      const x = zone.rect.x + Math.random() * zone.rect.width;
+      const y = zone.rect.y + Math.random() * zone.rect.height;
+      if (!pointInSpawnSafeWater(x, y)) continue;
+
+      const farEnough = existingPoints.every(point => Math.hypot(point.x - x, point.y - y) >= minSpawnDistance);
+      if (!farEnough) continue;
+
+      return { x, y };
+    }
+
+    for (let i = 0; i < 4000; i++) {
+      const x = tub.x + 12 + Math.random() * Math.max(20, tub.width - 24);
+      const y = tub.y + 12 + Math.random() * Math.max(20, tub.height - 24);
+      if (pointInSpawnSafeWater(x, y)) return { x, y };
+    }
+
+    return {
+      x: waterGeometry.tub.x + waterGeometry.tub.width / 2,
+      y: waterGeometry.tub.y + waterGeometry.tub.height / 2
+    };
+  }
+
+  function recomputeGasFractionsFromParticles() {
+    syringeState.left.trappedH2 = 0;
+    syringeState.right.trappedH2 = 0;
+
+    // Gasraum-Logik:
+    // - H2 und O2 zählen jeweils als 0.5 Erweiterungsschritt.
+    // - H-Atome und O-Atome zählen jeweils als 0.25 Erweiterungsschritt.
+    waterGeometry = getWaterGeometry();
+
+    waterGeometry.syringes.forEach(syringe => {
+      let gasUnits = 0;
+
+      molecules.forEach(p => {
+        if (p.kind === 'hydrogenMolecule' || p.kind === 'oxygenMolecule') {
+          if (gasMoleculeInSyringeColumn(p, syringe)) {
+            gasUnits += 0.5;
+          }
+          return;
+        }
+
+        if (p.kind !== 'hydrogenAtom' && p.kind !== 'oxygenAtom') return;
+
+        const radius = p.r || p.collisionRadius || 3;
+        const insideColumn =
+          p.x - radius >= syringe.inner.x &&
+          p.x + radius <= syringe.inner.x + syringe.inner.width &&
+          p.y - radius >= syringe.outer.y + syringe.closedTop &&
+          p.y + radius <= syringe.outer.y + syringe.outer.height;
+
+        if (insideColumn) {
+          gasUnits += 0.25;
+        }
+      });
+
+      syringeState[syringe.key].trappedH2 = gasUnits;
+    });
+
+    Object.keys(syringeState).forEach(key => {
+      const steps = Math.min(9, Math.floor(syringeState[key].trappedH2 || 0));
+      syringeState[key].targetWaterFraction = Math.max(0, 1 - steps / 9);
+    });
+
+    waterGeometry = getWaterGeometry();
+    updateGasDebugZones();
+  }
+
+  function buildMolecules() {
+    waterGeometry = getWaterGeometry();
+    molecules = [];
+
+    Object.values(syringeState).forEach(s => {
+      s.trappedH2 = 0;
+      s.waterFraction = 1;
+      s.targetWaterFraction = 1;
+    });
+    updateSyringeVisuals();
+    waterGeometry = getWaterGeometry();
+    updateGasDebugZones();
+
+    const totalCount = 150;
+    const spawnPoints = [];
+    for (let i = 0; i < totalCount; i++) {
+      const p = randomPointInWater(spawnPoints);
+      spawnPoints.push(p);
+      molecules.push(new WaterMolecule(p.x, p.y));
+    }
+  }
+
+
+  function createWaterFromCenter(x, y, vx, vy) {
+    const w = new WaterMolecule(x, y);
+    w.vx = vx;
+    w.vy = vy;
+    w.theta = Math.random() * Math.PI * 2;
+    w.omega = (Math.random() - 0.5) * 0.01;
+    initAntiStickState(w);
+    return w;
+  }
+
+
+  const HYDRATION_MAX_WATERS = 4;
+  const HYDRATION_CAPTURE_RADIUS = 38;
+  const HYDRATION_RELEASE_RADIUS = 58;
+  const HYDRATION_SHELL_RADIUS = 18;
+  const HYDRATION_POSITION_EASING = 0.16;
+
+  function isHydratableIon(particle) {
+    return particle && (particle.kind === 'hydroxide' || particle.kind === 'oxoniumIon');
+  }
+
+  function getIonChargeCenter(ion) {
+    if (!ion) return null;
+    // Beim Hydroxid sitzt die negative Ladung am Sauerstoff; beim Oxonium sitzt
+    // die positive Ladung ebenfalls am zentralen Sauerstoff.
+    return { x: ion.x, y: ion.y };
+  }
+
+  function clearHydrationState(water) {
+    if (!water || water.kind !== 'water') return;
+    water.hydrationPartner = null;
+    water.hydrationSlot = -1;
+    water.hydrationStrength = 0;
+  }
+
+  function shouldSkipHydratedPairCollision(a, b) {
+    return (
+      (a.kind === 'water' && a.hydrationPartner === b && isHydratableIon(b)) ||
+      (b.kind === 'water' && b.hydrationPartner === a && isHydratableIon(a))
+    );
+  }
+
+  function getHydrationSlotAngle(ion, slotIndex) {
+    const base = ion.kind === 'hydroxide' ? Math.PI / 4 : 0;
+    return base + slotIndex * (Math.PI * 2 / HYDRATION_MAX_WATERS);
+  }
+
+  function getDesiredHydrationTheta(waterX, waterY, ion) {
+    const center = getIonChargeCenter(ion);
+    const directionToIon = Math.atan2(center.y - waterY, center.x - waterX);
+    return ion.kind === 'hydroxide'
+      ? directionToIon
+      : directionToIon + Math.PI;
+  }
+
+  function hydrationTargetForSlot(water, ion, slotIndex) {
+    const center = getIonChargeCenter(ion);
+    if (!center) return null;
+
+    const angle = getHydrationSlotAngle(ion, slotIndex);
+    const x = center.x + Math.cos(angle) * HYDRATION_SHELL_RADIUS;
+    const y = center.y + Math.sin(angle) * HYDRATION_SHELL_RADIUS;
+    const theta = getDesiredHydrationTheta(x, y, ion);
+
+    return { x, y, theta };
+  }
+
+  function isHydrationTargetAllowed(water, ion, slotIndex) {
+    const target = hydrationTargetForSlot(water, ion, slotIndex);
+    if (!target) return false;
+
+    // Wichtig: Nicht nur der Mittelpunkt, sondern alle Atome des Wassermoleküls
+    // müssen im erlaubten Wasserbereich liegen. Sonst zieht die Hydrathülle
+    // Moleküle durch Glaswände, Gasräume oder aus der Wanne heraus.
+    return water.fitsInWater(target.x, target.y, target.theta);
+  }
+
+  function findFreeValidHydrationSlot(water, ion, usedSlots) {
+    for (let slot = 0; slot < HYDRATION_MAX_WATERS; slot += 1) {
+      if (usedSlots.has(slot)) continue;
+      if (isHydrationTargetAllowed(water, ion, slot)) return slot;
+    }
+    return -1;
+  }
+
+  function canWaterJoinHydrationShell(water) {
+    if (!water || water.kind !== 'water') return false;
+    if (water.reactionState && water.reactionState !== 'idle') return false;
+    if (!water.fitsInWater(water.x, water.y, water.theta)) return false;
+    return true;
+  }
+
+  function updateHydratedWaterPose(water, ion, slotIndex) {
+    const center = getIonChargeCenter(ion);
+    if (!center) return;
+
+    const target = hydrationTargetForSlot(water, ion, slotIndex);
+    if (!target || !isHydrationTargetAllowed(water, ion, slotIndex)) {
+      clearHydrationState(water);
+      return;
+    }
+
+    const oldX = water.x;
+    const oldY = water.y;
+    const oldTheta = water.theta;
+
+    const dx = target.x - water.x;
+    const dy = target.y - water.y;
+    const nextX = water.x + dx * HYDRATION_POSITION_EASING;
+    const nextY = water.y + dy * HYDRATION_POSITION_EASING;
+
+    let deltaTheta = target.theta - water.theta;
+    while (deltaTheta > Math.PI) deltaTheta -= Math.PI * 2;
+    while (deltaTheta < -Math.PI) deltaTheta += Math.PI * 2;
+    const nextTheta = water.theta + deltaTheta * 0.18;
+
+    if (!water.fitsInWater(nextX, nextY, nextTheta)) {
+      water.x = oldX;
+      water.y = oldY;
+      water.theta = oldTheta;
+      clearHydrationState(water);
+      return;
+    }
+
+    water.x = nextX;
+    water.y = nextY;
+    water.theta = nextTheta;
+    water.vx = water.vx * 0.78 + dx * 0.012;
+    water.vy = water.vy * 0.78 + dy * 0.012;
+    water.vx = clamp(water.vx, -0.24, 0.24);
+    water.vy = clamp(water.vy, -0.24, 0.24);
+    water.omega *= 0.45;
+    water.hydrationStrength = Math.min(1, (water.hydrationStrength || 0) + 0.06);
+  }
+
+  function updateHydrationShells() {
+    if (!molecules || molecules.length === 0) return;
+
+    const moleculeSet = new Set(molecules);
+    molecules.forEach(p => {
+      if (p.kind !== 'water') return;
+      if (!p.hydrationPartner || !moleculeSet.has(p.hydrationPartner)) {
+        clearHydrationState(p);
+        return;
+      }
+      const center = getIonChargeCenter(p.hydrationPartner);
+      if (!center || Math.hypot(p.x - center.x, p.y - center.y) > HYDRATION_RELEASE_RADIUS) {
+        clearHydrationState(p);
+      }
+    });
+
+    const waters = molecules.filter(p => p.kind === 'water');
+    const ions = molecules.filter(isHydratableIon);
+
+    ions.forEach(ion => {
+      let shell = waters
+        .filter(w => w.hydrationPartner === ion)
+        .sort((a, b) => a.hydrationSlot - b.hydrationSlot)
+        .slice(0, HYDRATION_MAX_WATERS);
+
+      const usedSlots = new Set();
+      shell.forEach(w => {
+        if (
+          w.hydrationSlot < 0 ||
+          w.hydrationSlot >= HYDRATION_MAX_WATERS ||
+          usedSlots.has(w.hydrationSlot) ||
+          !isHydrationTargetAllowed(w, ion, w.hydrationSlot)
+        ) {
+          const slot = findFreeValidHydrationSlot(w, ion, usedSlots);
+          if (slot < 0) {
+            clearHydrationState(w);
+            return;
+          }
+          w.hydrationSlot = slot;
+        }
+        usedSlots.add(w.hydrationSlot);
+      });
+      shell = shell.filter(w => w.hydrationPartner === ion);
+
+      while (shell.length < HYDRATION_MAX_WATERS) {
+        const center = getIonChargeCenter(ion);
+        const candidate = waters
+          .filter(w => !w.hydrationPartner && canWaterJoinHydrationShell(w))
+          .map(w => ({ w, d: Math.hypot(w.x - center.x, w.y - center.y) }))
+          .filter(item => item.d <= HYDRATION_CAPTURE_RADIUS)
+          .sort((a, b) => a.d - b.d)[0];
+
+        if (!candidate) break;
+
+        const slot = findFreeValidHydrationSlot(candidate.w, ion, usedSlots);
+        if (slot < 0) break;
+
+        candidate.w.hydrationPartner = ion;
+        candidate.w.hydrationSlot = slot;
+        candidate.w.hydrationStrength = 0;
+        usedSlots.add(slot);
+        shell.push(candidate.w);
+      }
+
+      shell.forEach(w => {
+        if (!canWaterJoinHydrationShell(w)) {
+          clearHydrationState(w);
+          return;
+        }
+        updateHydratedWaterPose(w, ion, w.hydrationSlot);
+      });
+    });
+  }
+
+  function drawHydrationShells() {
+    if (!molecules || molecules.length === 0) return;
+
+    ctx.save();
+    ctx.lineWidth = 1.1;
+    ctx.setLineDash([3, 4]);
+    ctx.strokeStyle = 'rgba(70, 120, 190, 0.28)';
+    ctx.fillStyle = 'rgba(70, 120, 190, 0.04)';
+
+    molecules.filter(isHydratableIon).forEach(ion => {
+      const shellWaters = molecules.filter(w => w.kind === 'water' && w.hydrationPartner === ion);
+      if (shellWaters.length === 0) return;
+      const center = getIonChargeCenter(ion);
+      ctx.beginPath();
+      ctx.arc(center.x, center.y, HYDRATION_SHELL_RADIUS + 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.setLineDash([2, 5]);
+      shellWaters.forEach(water => {
+        const alpha = 0.12 + 0.22 * (water.hydrationStrength || 0);
+        ctx.strokeStyle = `rgba(50, 100, 180, ${alpha})`;
+        ctx.beginPath();
+        ctx.moveTo(center.x, center.y);
+        ctx.lineTo(water.x, water.y);
+        ctx.stroke();
+      });
+      ctx.setLineDash([3, 4]);
+      ctx.strokeStyle = 'rgba(70, 120, 190, 0.28)';
+    });
+
+    ctx.restore();
+  }
+
+  function particleFitsAt(particle, x = particle.x, y = particle.y) {
+    if (!particle || typeof particle.fitsInWater !== 'function') return true;
+    // Freie Einzelatome entstehen nur durch Elektrodenreaktionen. Deshalb dürfen sie
+    // nicht im Wasserbad außerhalb der Spritzen stabilisiert werden.
+    if (particle.kind === 'hydrogenAtom' || particle.kind === 'oxygenAtom') {
+      return particle.fitsInWater(x, y) && particleFullyInsideAnySyringeWater(particle, x, y);
+    }
+    if (particle.kind === 'water') return particle.fitsInWater(x, y, particle.theta);
+    if (particle.kind === 'oxoniumIon') return particle.fitsInWater(x, y, particle.theta);
+    if (particle.kind === 'hydroxide') return particle.fitsInWater(x, y, particle.hx, particle.hy);
+    if (particle.kind === 'oxygenMolecule' || particle.kind === 'hydrogenMolecule') return particle.fitsInWater(x, y, particle.theta);
+    return particle.fitsInWater(x, y);
+  }
+
+  function wouldCollideAt(particle, x, y, margin = 1.2) {
+    const r = particle.collisionRadius || particle.r || 4;
+    return molecules.some(other => {
+      if (!other || other === particle) return false;
+      if (shouldSkipHydratedPairCollision(particle, other)) return false;
+      const otherRadius = other.collisionRadius || other.r || 4;
+      return Math.hypot(other.x - x, other.y - y) < r + otherRadius + margin;
+    });
+  }
+
+
+  function particlesShareSameSyringeWaterArea(a, b) {
+    if (!waterGeometry || !waterGeometry.syringes) return false;
+    return waterGeometry.syringes.some(syringe =>
+      particleFullyInsideSyringeWater(a, syringe) && particleFullyInsideSyringeWater(b, syringe)
+    );
+  }
+
+  function findNearestAllowedNonCollidingPoint(particle) {
+    const starts = [];
+    if (Number.isFinite(particle.x) && Number.isFinite(particle.y)) starts.push({ x: particle.x, y: particle.y });
+    if (Number.isFinite(particle.prevX) && Number.isFinite(particle.prevY)) starts.push({ x: particle.prevX, y: particle.prevY });
+    if ((particle.kind === 'hydrogenAtom' || particle.kind === 'oxygenAtom') && waterGeometry?.syringes) {
+      waterGeometry.syringes.forEach(s => {
+        starts.push({ x: s.inner.x + s.inner.width / 2, y: s.inner.y + s.inner.height / 2 });
+      });
+    }
+
+    let bestAllowed = null;
+    let bestAllowedDistance = Infinity;
+    const maxSearchRadius = (particle.kind === 'hydrogenAtom' || particle.kind === 'oxygenAtom') ? 260 : 90;
+
+    for (const start of starts) {
+      for (let radius = 0; radius <= maxSearchRadius; radius += 3) {
+        const samples = radius === 0 ? 1 : Math.max(12, Math.ceil(radius * 1.4));
+        for (let i = 0; i < samples; i += 1) {
+          const angle = radius === 0 ? 0 : (Math.PI * 2 * i) / samples;
+          const x = start.x + Math.cos(angle) * radius;
+          const y = start.y + Math.sin(angle) * radius;
+          if (!particleFitsAt(particle, x, y)) continue;
+
+          const d = Math.hypot(x - particle.x, y - particle.y);
+          if (d < bestAllowedDistance) {
+            bestAllowed = { x, y };
+            bestAllowedDistance = d;
+          }
+
+          if (!wouldCollideAt(particle, x, y)) return { x, y };
+        }
+      }
+    }
+
+    return bestAllowed;
+  }
+
+  function pullAtomBackIntoAllowedArea(atom) {
+    const target = findNearestAllowedNonCollidingPoint(atom);
+    if (!target) return false;
+
+    atom.x = target.x;
+    atom.y = target.y;
+
+    // Nach der Korrektur bekommt das Atom einen kleinen Impuls in den erlaubten Bereich.
+    // Dadurch bleibt es beweglich und kann wieder sicher mit passenden Teilchen kollidieren.
+    const angle = Math.atan2(target.y - (atom.prevY ?? target.y), target.x - (atom.prevX ?? target.x));
+    atom.vx = clamp((atom.vx || 0) * 0.35 + Math.cos(angle) * 0.08, -0.28, 0.28);
+    atom.vy = clamp((atom.vy || 0) * 0.35 + Math.sin(angle) * 0.08, -0.28, 0.28);
+    initAntiStickState(atom);
+    return true;
+  }
+
+  function repairParticlesOutsideAllowedArea() {
+    if (!waterGeometry || !molecules) return;
+
+    molecules.forEach(particle => {
+      if (!particle || typeof particle.fitsInWater !== 'function') return;
+      if (particleFitsAt(particle)) return;
+
+      if (particle.kind === 'water') clearHydrationState(particle);
+
+      // Einzelne H- und O-Atome werden zum nächstliegenden erlaubten Punkt gezogen.
+      // Dabei wird ein Punkt bevorzugt, an dem keine Überlappung mit anderen Teilchen entsteht.
+      if (particle.kind === 'hydrogenAtom' || particle.kind === 'oxygenAtom') {
+        if (pullAtomBackIntoAllowedArea(particle)) return;
+      }
+
+      // Für alle anderen Teilchen bleibt die konservative Rücksetzlogik erhalten.
+      const fallbackX = typeof particle.prevX === 'number' ? particle.prevX : particle.x;
+      const fallbackY = typeof particle.prevY === 'number' ? particle.prevY : particle.y;
+
+      if (particleFitsAt(particle, fallbackX, fallbackY) && !wouldCollideAt(particle, fallbackX, fallbackY, 0.5)) {
+        particle.x = fallbackX;
+        particle.y = fallbackY;
+        particle.vx *= -0.55;
+        particle.vy *= -0.55;
+        return;
+      }
+
+      const safePoint = findNearestAllowedNonCollidingPoint(particle);
+      if (safePoint) {
+        particle.x = safePoint.x;
+        particle.y = safePoint.y;
+        particle.vx *= -0.35;
+        particle.vy *= -0.35;
+        initAntiStickState(particle);
+      }
+    });
+  }
+
+  function resolveParticleCollisions() {
+    const newParticles = [];
+    const removed = new Set();
+
+    for (let i = 0; i < molecules.length; i++) {
+      if (removed.has(i)) continue;
+
+      for (let j = i + 1; j < molecules.length; j++) {
+        if (removed.has(j)) continue;
+
+        const a = molecules[i];
+        const b = molecules[j];
+
+        if (shouldSkipHydratedPairCollision(a, b)) continue;
+
+        if (
+          (a.kind === 'oxoniumIon' && b.kind === 'hydroxide') ||
+          (b.kind === 'oxoniumIon' && a.kind === 'hydroxide')
+        ) {
+          const dxr = b.x - a.x;
+          const dyr = b.y - a.y;
+          const distr = Math.hypot(dxr, dyr);
+          if (distr < a.collisionRadius + b.collisionRadius) {
+            const mx = (a.x + b.x) / 2;
+            const my = (a.y + b.y) / 2;
+            const mvx = (a.vx + b.vx) * 0.5;
+            const mvy = (a.vy + b.vy) * 0.5;
+            newParticles.push(
+              createWaterFromCenter(mx - 6, my, mvx + (Math.random() - 0.5) * 0.05, mvy + (Math.random() - 0.5) * 0.05),
+              createWaterFromCenter(mx + 6, my, mvx + (Math.random() - 0.5) * 0.05, mvy + (Math.random() - 0.5) * 0.05)
+            );
+            removed.add(i);
+            removed.add(j);
+            break;
+          }
+        }
+
+        if (
+          (a.kind === 'hydrogenCation' && b.kind === 'hydroxide') ||
+          (b.kind === 'hydrogenCation' && a.kind === 'hydroxide')
+        ) {
+          const dxr = b.x - a.x;
+          const dyr = b.y - a.y;
+          const distr = Math.hypot(dxr, dyr);
+          if (distr < a.collisionRadius + b.collisionRadius) {
+            const mx = (a.x + b.x) / 2;
+            const my = (a.y + b.y) / 2;
+            const mvx = (a.vx + b.vx) * 0.5;
+            const mvy = (a.vy + b.vy) * 0.5;
+            newParticles.push(
+              createWaterFromCenter(mx, my, mvx, mvy)
+            );
+            removed.add(i);
+            removed.add(j);
+            break;
+          }
+        }
+
+        if (
+          (a.kind === 'hydrogenCation' && b.kind === 'water') ||
+          (b.kind === 'hydrogenCation' && a.kind === 'water')
+        ) {
+          const cation = a.kind === 'hydrogenCation' ? a : b;
+          const water = a.kind === 'water' ? a : b;
+
+          const dxc = b.x - a.x;
+          const dyc = b.y - a.y;
+          const distc = Math.hypot(dxc, dyc);
+
+          if (distc < a.collisionRadius + b.collisionRadius) {
+            const theta = Math.atan2(cation.y - water.y, cation.x - water.x);
+            const mvx = (a.vx + b.vx) * 0.5;
+            const mvy = (a.vy + b.vy) * 0.5;
+            newParticles.push(new OxoniumIon(water.x, water.y, theta, mvx, mvy));
+            removed.add(i);
+            removed.add(j);
+            break;
+          }
+        }
+
+        if (a.kind === 'hydrogenAtom' && b.kind === 'hydrogenAtom') {
+          const dxh = b.x - a.x;
+          const dyh = b.y - a.y;
+          const disth = Math.hypot(dxh, dyh);
+          if (disth < a.collisionRadius + b.collisionRadius && particlesShareSameSyringeWaterArea(a, b)) {
+            const mx = (a.x + b.x) / 2;
+            const my = (a.y + b.y) / 2;
+            const mvx = (a.vx + b.vx) * 0.5;
+            const mvy = (a.vy + b.vy) * 0.5;
+            const product = new HydrogenMolecule(mx, my, mvx, mvy);
+            if (particleFullyInsideAnySyringeWater(product)) {
+              newParticles.push(product);
+              removed.add(i);
+              removed.add(j);
+              break;
+            }
+          }
+        }
+
+        if (a.kind === 'oxygenAtom' && b.kind === 'oxygenAtom') {
+          const dxo = b.x - a.x;
+          const dyo = b.y - a.y;
+          const disto = Math.hypot(dxo, dyo);
+          if (disto < a.collisionRadius + b.collisionRadius && particlesShareSameSyringeWaterArea(a, b)) {
+            const mx = (a.x + b.x) / 2;
+            const my = (a.y + b.y) / 2;
+            const mvx = (a.vx + b.vx) * 0.5;
+            const mvy = (a.vy + b.vy) * 0.5;
+            const product = new OxygenMolecule(mx, my, mvx, mvy);
+            if (particleFullyInsideAnySyringeWater(product)) {
+              newParticles.push(product);
+              removed.add(i);
+              removed.add(j);
+              break;
+            }
+          }
+        }
+
+        let dx = b.x - a.x;
+        let dy = b.y - a.y;
+        let dist = Math.hypot(dx, dy);
+        if (dist === 0) dist = 0.0001;
+
+        const minDist = a.collisionRadius + b.collisionRadius;
+        if (dist < minDist) {
+          const nx = dx / dist;
+          const ny = dy / dist;
+          const overlap = minDist - dist;
+
+          a.x -= nx * overlap * 0.5;
+          a.y -= ny * overlap * 0.5;
+          b.x += nx * overlap * 0.5;
+          b.y += ny * overlap * 0.5;
+
+          const rvx = b.vx - a.vx;
+          const rvy = b.vy - a.vy;
+          const velAlongNormal = rvx * nx + rvy * ny;
+
+          if (velAlongNormal < 0) {
+            const impulse = velAlongNormal;
+            a.vx += impulse * nx;
+            a.vy += impulse * ny;
+            b.vx -= impulse * nx;
+            b.vy -= impulse * ny;
+          }
+        }
+      }
+    }
+
+    const remaining = molecules.filter((_, idx) => !removed.has(idx));
+    molecules.length = 0;
+    molecules.push(...remaining, ...newParticles);
+  }
+
+  function stepParticles() {
+    const nextParticles = [];
+    molecules.forEach(particle => {
+      const reactionProducts = particle.update();
+      if (reactionProducts && particle.kind === 'water') {
+        const validProducts = reactionProducts.filter(product => {
+          if (product.kind === 'hydrogenAtom' || product.kind === 'oxygenAtom') {
+            return particleFullyInsideAnySyringeWater(product);
+          }
+          return particleFitsAt(product);
+        });
+        if (validProducts.length === reactionProducts.length) {
+          nextParticles.push(...validProducts);
+        } else {
+          // Falls ein Produkt außerhalb der Spritze läge, bleibt das Wassermolekül erhalten.
+          particle.resetReactionState?.();
+          nextParticles.push(particle);
+        }
+      } else {
+        nextParticles.push(particle);
+      }
+    });
+    molecules = nextParticles;
+  }
+
+  function drawMolecules(timestamp = performance.now()) {
+    ctx.clearRect(0, 0, moleculeCanvas.width, moleculeCanvas.height);
+
+    if (lastFrameTimestamp == null) lastFrameTimestamp = timestamp;
+    const realDt = Math.max(0, Math.min(100, timestamp - lastFrameTimestamp));
+    lastFrameTimestamp = timestamp;
+
+    if (!simulationPaused) {
+      simulatedNowMs += realDt * simulationSpeed;
+      simulationStepAccumulator += (realDt / 16.6667) * simulationSpeed;
+      const steps = Math.min(4, Math.floor(simulationStepAccumulator));
+      if (steps > 0) simulationStepAccumulator = Math.max(0, simulationStepAccumulator - steps);
+
+      for (let step = 0; step < steps; step += 1) {
+        stepParticles();
+        recomputeGasFractionsFromParticles();
+        updateSyringeWaterLevelsSmoothly();
+        waterGeometry = getWaterGeometry();
+        updateGasDebugZones();
+        updateElectrodeElectronAnimations();
+        updateElectronTransfers();
+        updateWaterReactionElectronTransfers();
+        releaseStaleAnodeLocks();
+        resolveParticleCollisions();
+        repairParticlesOutsideAllowedArea();
+        updateHydrationShells();
+        repairParticlesOutsideAllowedArea();
+      }
+    }
+
+    drawHydrationShells();
+    molecules.forEach(m => m.draw(ctx));
+    requestAnimationFrame(drawMolecules);
+  }
+
+  window.addEventListener('resize', () => {
+    buildMolecules();
+    updateAll();
+    updateGasDebugZones();
+  });
+
+  applyViewCamera();
+  updateSyringeVisuals();
+  buildMolecules();
+  updateAll();
+  refreshAllElectrodeElectronSlots();
+  updateGasDebugZones();
+  drawMolecules();
+</script>
+</body>
+</html>
