@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Peptid-Baukasten</title>
+<style>
+  :root{
+    --bg:#ececec; --panel:#1f232a; --panel2:#2a2f38; --panel3:#313845;
+    --text:#f5f5f5; --muted:#c7ccd5; --accent:#2a72b7; --danger:#944444;
+  }
+  *{box-sizing:border-box}
+  html,body{
+    margin:0; width:100%; height:100%; overflow:hidden;
+    background:var(--bg); color:var(--text); font-family:Arial,Helvetica,sans-serif;
+    user-select:none; -webkit-user-select:none; touch-action:none;
+  }
+  #app{width:100vw;height:100vh;display:grid;grid-template-columns:320px 1fr}
+  #sidebar{background:linear-gradient(180deg,#242932,#181c22);border-right:1px solid #38404d;padding:14px;overflow-y:auto;touch-action:pan-y}
+  h1{margin:0 0 8px;font-size:22px;line-height:1.1}
+  .hint{font-size:13px;color:var(--muted);line-height:1.35;margin-bottom:12px}
+  .toolbar{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+  button{border:0;border-radius:12px;padding:10px 12px;font-size:14px;color:var(--text);background:var(--panel2);cursor:pointer}
+  button.primary{background:var(--accent)} button.danger{background:var(--danger)}
+  .zoomlabel{font-size:12px;color:var(--muted);text-align:center;margin-bottom:6px}
+  .zoomrow{display:grid;grid-template-columns:40px 1fr 40px;gap:8px;align-items:center;margin-bottom:12px}
+  .zoomrow input{width:100%}
+  .aa-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .aa-btn{min-height:58px;text-align:left;background:var(--panel3);border:1px solid #404959}
+  .aa-btn strong{display:block;font-size:16px;margin-bottom:2px}
+  .aa-btn span{display:block;font-size:12px;color:var(--muted)}
+  #stageWrap{position:relative;overflow:hidden;background:#ececec}
+  #stage{display:block;width:100%;height:100%;touch-action:none}
+  #status{position:absolute;left:14px;right:14px;bottom:14px;display:flex;gap:8px;flex-wrap:wrap;pointer-events:none}
+  .pill{padding:9px 12px;border-radius:999px;background:rgba(255,255,255,.82);border:1px solid rgba(0,0,0,.12);color:#1f1f1f;backdrop-filter:blur(6px);font-size:14px}
+  .pill.ok{border-color:rgba(45,139,81,.45);color:#1a5f35}
+  .pill.warn{border-color:rgba(148,111,26,.45);color:#72550d}
+  .legend{margin-top:14px;padding-top:12px;border-top:1px solid #38404d;font-size:12px;line-height:1.45;color:var(--muted)}
+  .dot{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:6px;vertical-align:-1px}
+  @media(max-width:950px){
+    #app{grid-template-columns:1fr;grid-template-rows:230px 1fr}
+    #sidebar{border-right:none;border-bottom:1px solid #38404d}
+    .aa-grid{display:flex;overflow-x:auto;gap:8px;padding-bottom:4px}
+    .aa-btn{min-width:150px}
+    .legend{display:none}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="sidebar">
+    <h1>Peptid-Baukasten</h1>
+    <div class="hint">Aminosäuren können mehrfach verknüpft werden. Ziehe eine freie Aminogruppe an eine freie Carboxygruppe. Wasserstoff ist kleiner als Kohlenstoff, Sauerstoff und Stickstoff.</div>
+    <div class="toolbar"><button id="addRandom" class="primary">Zufällig</button><button id="reset" class="danger">Zurücksetzen</button></div>
+    <div class="zoomlabel" id="zoomLabel">Zoom: 100%</div>
+    <div class="zoomrow"><button id="zoomOut">−</button><input id="zoomSlider" type="range" min="45" max="140" value="100"><button id="zoomIn">+</button></div>
+    <div class="aa-grid" id="aaGrid"></div>
+    <div class="legend">
+      <div><span class="dot" style="background:#e93123"></span>Sauerstoff</div>
+      <div><span class="dot" style="background:#f6f6f6;border:1px solid #111"></span>Wasserstoff</div>
+      <div><span class="dot" style="background:#1d2a73"></span>Stickstoff</div>
+      <div><span class="dot" style="background:#000"></span>Kohlenstoff</div>
+      <div><span class="dot" style="background:#caa100"></span>Schwefel</div>
+    </div>
+  </aside>
+  <main id="stageWrap">
+    <canvas id="stage"></canvas>
+    <div id="status"><div class="pill" id="countPill">Objekte: 0</div><div class="pill" id="peptidePill">Peptidbindungen: 0</div><div class="pill warn" id="msgPill">Noch keine Kondensationsreaktion</div></div>
+  </main>
+</div>
+<script>
+const canvas=document.getElementById('stage'),ctx=canvas.getContext('2d'),aaGrid=document.getElementById('aaGrid');
+const countPill=document.getElementById('countPill'),peptidePill=document.getElementById('peptidePill'),msgPill=document.getElementById('msgPill'),zoomSlider=document.getElementById('zoomSlider'),zoomLabel=document.getElementById('zoomLabel');
+
+const RAD={H:12,C:22,O:26,N:30,S:28};
+const COLORS={O:'#e93123',H:'#f6f6f6',N:'#1d2a73',C:'#000',S:'#caa100',TEXT_DARK:'#000',TEXT_LIGHT:'#fff',GRID:'#d9d9d9',GLOW:'#18d36b'};
+const aminoAcids=[
+  {code:'Ile',name:'Isoleucin',sideType:'ile'}, {code:'Leu',name:'Leucin',sideType:'leu'},
+  {code:'Ala',name:'Alanin',sideType:'ala'}, {code:'Gly',name:'Glycin',sideType:'gly'},
+  {code:'Ser',name:'Serin',sideType:'ser'}, {code:'Val',name:'Valin',sideType:'val'},
+  {code:'Thr',name:'Threonin',sideType:'thr'}, {code:'Cys',name:'Cystein',sideType:'cys'}
+];
+const state={chains:[],waters:[],nextId:1,drag:null,reactionAnimation:null,lastMessage:'Noch keine Kondensationsreaktion',glowAtoms:new Map(),scale:1};
+
+function atomRadius(el){return RAD[el]||20}
+function atom(el,key,x,y){return{el,key,x,y}}
+function dist(x1,y1,x2,y2){return Math.hypot(x2-x1,y2-y1)}
+function pointFrom(x,y,d,deg){const r=deg*Math.PI/180;return{x:x+Math.cos(r)*d,y:y+Math.sin(r)*d}}
+function lerp(a,b,t){return a+(b-a)*t}
+function ease(t){return t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2}
+function screenToWorld(p){return{x:p.x/state.scale,y:p.y/state.scale}}
+function worldToScreen(p){return{x:p.x*state.scale,y:p.y*state.scale}}
+
+function resizeCanvas(){
+  const dpr=Math.max(1,Math.min(2,window.devicePixelRatio||1)),r=canvas.getBoundingClientRect();
+  canvas.width=Math.floor(r.width*dpr); canvas.height=Math.floor(r.height*dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0); draw();
+}
+function updateStatus(){
+  countPill.textContent=`Objekte: ${state.chains.length}`;
+  peptidePill.textContent=`Peptidbindungen: ${state.chains.reduce((s,c)=>s+Math.max(0,c.residues.length-1),0)}`;
+  msgPill.textContent=state.lastMessage;
+  msgPill.className=/läuft|gebildet|Annäherung/.test(state.lastMessage)?'pill ok':'pill warn';
+  zoomLabel.textContent=`Zoom: ${Math.round(state.scale*100)}%`;
+}
+function initButtons(){
+  aminoAcids.forEach(aa=>{const b=document.createElement('button');b.className='aa-btn';b.innerHTML=`<strong>${aa.code}</strong><span>${aa.name}</span>`;b.onclick=()=>addAminoAcid(aa);aaGrid.appendChild(b)});
+}
+function addAminoAcid(aa){
+  const w=(canvas.clientWidth||1000)/state.scale,h=(canvas.clientHeight||700)/state.scale;
+  const slots=[{x:190,y:150},{x:450,y:150},{x:710,y:150},{x:190,y:360},{x:450,y:360},{x:710,y:360}];
+  const p=slots[state.chains.length%slots.length];
+  state.chains.push({id:state.nextId++,residues:[aa],x:Math.max(150,Math.min(p.x,w-280)),y:Math.max(115,Math.min(p.y,h-190)),selected:false});
+  state.lastMessage='Aminosäure hinzugefügt'; updateGlowAtoms(); updateStatus(); draw();
+}
+function resetAll(){state.chains=[];state.waters=[];state.nextId=1;state.drag=null;state.reactionAnimation=null;state.glowAtoms.clear();state.lastMessage='Noch keine Kondensationsreaktion';updateStatus();draw()}
+
+function attachHs(center,angles,prefix,start=1){return angles.map((ang,i)=>{const p=pointFrom(center.x,center.y,atomRadius(center.el)+RAD.H,ang);return atom('H',`${prefix}_h${start+i}`,p.x,p.y)})}
+function addHydrogensTo(atoms,center,angles,prefix,startIndex=1){angles.forEach((ang,i)=>{const p=pointFrom(center.x,center.y,atomRadius(center.el)+RAD.H,ang);atoms.push(atom('H',`${prefix}_h${startIndex+i}`,p.x,p.y))})}
+function carbonFrom(base,key,ang,parent='C'){const p=pointFrom(base.x,base.y,RAD[parent]+RAD.C,ang);return atom('C',key,p.x,p.y)}
+function heteroFrom(base,el,key,ang){const p=pointFrom(base.x,base.y,atomRadius(base.el)+atomRadius(el),ang);return atom(el,key,p.x,p.y)}
+
+function buildSideChainAtoms(type, alphaC, prefix='side', residueIndex=0){
+  const atoms = [];
+
+  // Seitenketten möglichst gerade nach unten führen.
+  // Verzweigungen werden nur leicht nach links/rechts unten aufgefächert.
+  const DOWN = 90;
+  const DOWN_LEFT = 135;
+  const DOWN_RIGHT = 45;
+  const LEFT = 180;
+  const RIGHT = 0;
+
+  if(type === 'gly'){
+    const p = pointFrom(alphaC.x, alphaC.y, RAD.C + RAD.H, DOWN);
+    atoms.push(atom('H', `${prefix}_hR`, p.x, p.y));
+    return atoms;
+  }
+
+  if(type === 'ala'){
+    const c1 = carbonFrom(alphaC, `${prefix}_c1`, DOWN);
+    atoms.push(c1);
+    addHydrogensTo(atoms, c1, [DOWN_LEFT, DOWN, DOWN_RIGHT], `${prefix}_c1`);
+    return atoms;
+  }
+
+  if(type === 'ser'){
+    const c1 = carbonFrom(alphaC, `${prefix}_c1`, DOWN);
+    const o1 = heteroFrom(c1, 'O', `${prefix}_o1`, DOWN);
+    atoms.push(c1);
+    addHydrogensTo(atoms, c1, [DOWN_LEFT, DOWN_RIGHT], `${prefix}_c1`);
+    atoms.push(o1);
+    addHydrogensTo(atoms, o1, [RIGHT], `${prefix}_o`);
+    return atoms;
+  }
+
+  if(type === 'cys'){
+    const c1 = carbonFrom(alphaC, `${prefix}_c1`, DOWN);
+    const s1 = heteroFrom(c1, 'S', `${prefix}_s1`, DOWN);
+    atoms.push(c1);
+    addHydrogensTo(atoms, c1, [DOWN_LEFT, DOWN_RIGHT], `${prefix}_c1`);
+    atoms.push(s1);
+    addHydrogensTo(atoms, s1, [RIGHT], `${prefix}_s`);
+    return atoms;
+  }
+
+  if(type === 'val'){
+    const c1 = carbonFrom(alphaC, `${prefix}_c1`, DOWN);
+    const c2 = carbonFrom(c1, `${prefix}_c2`, DOWN_LEFT);
+    const c3 = carbonFrom(c1, `${prefix}_c3`, DOWN_RIGHT);
+
+    atoms.push(c1);
+    addHydrogensTo(atoms, c1, [DOWN], `${prefix}_c1`);
+
+    atoms.push(c2);
+    addHydrogensTo(atoms, c2, [LEFT, DOWN_LEFT, DOWN], `${prefix}_c2`);
+
+    atoms.push(c3);
+    addHydrogensTo(atoms, c3, [DOWN, DOWN_RIGHT, RIGHT], `${prefix}_c3`);
+    return atoms;
+  }
+
+  if(type === 'thr'){
+    const c1 = carbonFrom(alphaC, `${prefix}_c1`, DOWN);
+    const o1 = heteroFrom(c1, 'O', `${prefix}_o1`, DOWN_LEFT);
+    const c2 = carbonFrom(c1, `${prefix}_c2`, DOWN_RIGHT);
+
+    atoms.push(c1);
+    addHydrogensTo(atoms, c1, [DOWN], `${prefix}_c1`);
+
+    atoms.push(o1);
+    addHydrogensTo(atoms, o1, [LEFT], `${prefix}_o`);
+
+    atoms.push(c2);
+    addHydrogensTo(atoms, c2, [DOWN, DOWN_RIGHT, RIGHT], `${prefix}_c2`);
+    return atoms;
+  }
+
+  if(type === 'leu'){
+    const c1 = carbonFrom(alphaC, `${prefix}_c1`, DOWN);
+    const c2 = carbonFrom(c1, `${prefix}_c2`, DOWN);
+    const c3 = carbonFrom(c2, `${prefix}_c3`, DOWN_LEFT);
+    const c4 = carbonFrom(c2, `${prefix}_c4`, DOWN_RIGHT);
+
+    atoms.push(c1);
+    addHydrogensTo(atoms, c1, [DOWN_LEFT, DOWN_RIGHT], `${prefix}_c1`);
+
+    atoms.push(c2);
+    addHydrogensTo(atoms, c2, [DOWN], `${prefix}_c2`);
+
+    atoms.push(c3);
+    addHydrogensTo(atoms, c3, [LEFT, DOWN_LEFT, DOWN], `${prefix}_c3`);
+
+    atoms.push(c4);
+    addHydrogensTo(atoms, c4, [DOWN, DOWN_RIGHT, RIGHT], `${prefix}_c4`);
+    return atoms;
+  }
+
+  if(type === 'ile'){
+    const c1 = carbonFrom(alphaC, `${prefix}_c1`, DOWN);
+    const c2 = carbonFrom(c1, `${prefix}_c2`, DOWN_LEFT);
+    const c3 = carbonFrom(c1, `${prefix}_c3`, DOWN_RIGHT);
+    const c4 = carbonFrom(c2, `${prefix}_c4`, DOWN);
+
+    atoms.push(c1);
+    addHydrogensTo(atoms, c1, [DOWN], `${prefix}_c1`);
+
+    atoms.push(c2);
+    addHydrogensTo(atoms, c2, [LEFT, DOWN_LEFT], `${prefix}_c2`);
+
+    atoms.push(c3);
+    addHydrogensTo(atoms, c3, [DOWN, DOWN_RIGHT, RIGHT], `${prefix}_c3`);
+
+    atoms.push(c4);
+    addHydrogensTo(atoms, c4, [DOWN_LEFT, DOWN, DOWN_RIGHT], `${prefix}_c4`);
+    return atoms;
+  }
+
+  return atoms;
+}
+
+function layoutChain(chain){
+  const atoms=[];
+  const residueLayouts=[];
+  const y=chain.y;
+  let currentCarbX=chain.x;
+
+  for(let i=0;i<chain.residues.length;i++){
+    const aa=chain.residues[i],prefix=`r${i}`;
+    const cCarb=atom('C',`${prefix}_cCarb`,currentCarbX,y);
+    const oxyTop=atom('O',`${prefix}_oxyTop`,cCarb.x,cCarb.y-(RAD.C+RAD.O));
+
+    let cOLeft=null,cOH=null;
+    if(i===0){
+      cOLeft=atom('O',`${prefix}_oxyLeft`,cCarb.x-(RAD.C+RAD.O),y);
+      cOH=atom('H',`${prefix}_hOH`,cOLeft.x-(RAD.O+RAD.H),y);
+      atoms.push(cOH,cOLeft);
+    }
+
+    const cAlpha=atom('C',`${prefix}_cAlpha`,cCarb.x+RAD.C+RAD.C,y);
+    const hAlpha=atom('H',`${prefix}_hAlpha`,cAlpha.x,y-(RAD.C+RAD.H));
+    const aminoN=atom('N',`${prefix}_aminoN`,cAlpha.x+RAD.C+RAD.N,y);
+
+    let nH1=null,nH2=null;
+    if(i===chain.residues.length-1){
+      const h1=pointFrom(aminoN.x,aminoN.y,RAD.N+RAD.H,-45);
+      const h2=pointFrom(aminoN.x,aminoN.y,RAD.N+RAD.H,45);
+      nH1=atom('H',`${prefix}_aminoH1`,h1.x,h1.y);
+      nH2=atom('H',`${prefix}_aminoH2`,h2.x,h2.y);
+      atoms.push(nH1,nH2);
+    }else{
+      atoms.push(atom('H',`${prefix}_aminoH`,aminoN.x,aminoN.y+RAD.N+RAD.H));
+    }
+
+    const sideAtoms=buildSideChainAtoms(aa.sideType,cAlpha,`${prefix}_side`,i);
+    atoms.push(oxyTop,cCarb,hAlpha,cAlpha,aminoN,...sideAtoms);
+    residueLayouts.push({aa,index:i,cCarb,oxyTop,cAlpha,hAlpha,aminoN,nH1,nH2,cOLeft,cOH,sideAtoms});
+
+    currentCarbX=aminoN.x+RAD.N+RAD.C;
+  }
+
+  const first=residueLayouts[0],last=residueLayouts[residueLayouts.length-1];
+  return {atoms,residueLayouts,first,last,carboxylHotspot:first.cOLeft?{x:first.cOLeft.x,y:first.cOLeft.y,r:64}:null,aminoHotspot:last.aminoN?{x:last.aminoN.x,y:last.aminoN.y,r:64}:null};
+}
+
+function glowKey(id,key){return`${id}:${key}`} function glowStrength(id,key){return state.glowAtoms.get(glowKey(id,key))||0}
+function drawParticle(p,glow=0){
+  const r=atomRadius(p.el),fill=COLORS[p.el]||'#000',text=p.el==='H'?COLORS.TEXT_DARK:COLORS.TEXT_LIGHT;
+  ctx.save();
+  if(glow>0){ctx.globalAlpha=.10+.14*glow;ctx.beginPath();ctx.arc(p.x,p.y,r+5+8*glow,0,Math.PI*2);ctx.fillStyle=COLORS.GLOW;ctx.fill();ctx.globalAlpha=1}
+  ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);ctx.fillStyle=fill;ctx.fill();
+  if(p.el==='H'){ctx.strokeStyle=glow>0?'rgba(24,211,107,.55)':'#111';ctx.lineWidth=glow>0?2:1.1;ctx.stroke()}
+  ctx.fillStyle=text;ctx.textAlign='center';ctx.textBaseline='middle';ctx.font=`bold ${Math.round(r*.88)}px Arial`;ctx.fillText(p.el,p.x,p.y+1);ctx.restore();
+}
+function drawChain(chain){
+  const l=layoutChain(chain);
+  for(const a of l.atoms)drawParticle(a,glowStrength(chain.id,a.key));
+  ctx.save();ctx.fillStyle='#222';ctx.textAlign='center';ctx.font='bold 14px Arial';ctx.fillText(chain.residues.map(r=>r.code).join(' – '),chain.x+120,Math.max(...l.atoms.map(a=>a.y))+50);ctx.restore();
+}
+function drawWater(w){for(const a of w.atoms)drawParticle(a)}
+function drawReactionAnimation(anim){for(const m of anim.movers){const x=lerp(m.from.x,m.to.x,anim.progress),y=lerp(m.from.y,m.to.y,anim.progress),glow=m.role==='water'&&anim.progress<.68?.45:0;drawParticle({el:m.el,x,y},glow)}}
+function drawGrid(){const w=(canvas.clientWidth||0)/state.scale,h=(canvas.clientHeight||0)/state.scale;ctx.save();ctx.strokeStyle=COLORS.GRID;ctx.lineWidth=1/state.scale;ctx.globalAlpha=.35;const step=48;for(let x=0;x<w;x+=step){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke()}for(let y=0;y<h;y+=step){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke()}ctx.restore()}
+function draw(){ctx.clearRect(0,0,canvas.clientWidth||0,canvas.clientHeight||0);ctx.save();ctx.scale(state.scale,state.scale);drawGrid();for(const w of state.waters)drawWater(w);for(const c of state.chains)drawChain(c);if(state.reactionAnimation)drawReactionAnimation(state.reactionAnimation);ctx.restore()}
+
+function chooseAminoHydrogen(aminoChain,carboxylLayout){const a=layoutChain(aminoChain),d1=dist(carboxylLayout.carboxylHotspot.x,carboxylLayout.carboxylHotspot.y,a.last.nH1.x,a.last.nH1.y),d2=dist(carboxylLayout.carboxylHotspot.x,carboxylLayout.carboxylHotspot.y,a.last.nH2.x,a.last.nH2.y);return d1<=d2?{waterHKey:a.last.nH1.key,peptideHKey:a.last.nH2.key}:{waterHKey:a.last.nH2.key,peptideHKey:a.last.nH1.key}}
+function groupsOverlap(g1,g2){return dist(g1.x,g1.y,g2.x,g2.y)<(g1.r+g2.r)*.75}
+function getReactionCandidate(active=null){
+  let best=null; const list=active?[active]:state.chains;
+  for(const aC of list){for(const bC of state.chains){
+    if(aC.id===bC.id)continue;
+    const a=layoutChain(aC),b=layoutChain(bC);
+    const d1=dist(a.aminoHotspot.x,a.aminoHotspot.y,b.carboxylHotspot.x,b.carboxylHotspot.y);
+    const d2=dist(a.carboxylHotspot.x,a.carboxylHotspot.y,b.aminoHotspot.x,b.aminoHotspot.y);
+    const thr=(a.aminoHotspot.r+b.carboxylHotspot.r)*1.35;
+    if(d1<thr&&(!best||d1<best.distance)){const h=chooseAminoHydrogen(aC,b);best={aminoChain:aC,carboxylChain:bC,distance:d1,aminoWaterHKey:h.waterHKey,aminoPeptideHKey:h.peptideHKey}}
+    if(d2<thr&&(!best||d2<best.distance)){const h=chooseAminoHydrogen(bC,a);best={aminoChain:bC,carboxylChain:aC,distance:d2,aminoWaterHKey:h.waterHKey,aminoPeptideHKey:h.peptideHKey}}
+  }}
+  return best;
+}
+function updateGlowAtoms(active=null){
+  state.glowAtoms.clear(); if(state.reactionAnimation)return null;
+  const c=getReactionCandidate(active); if(!c)return null;
+  const intensity=Math.max(.15,Math.min(.65,1-(c.distance-95)/(190-95)));
+  const car=layoutChain(c.carboxylChain);
+  state.glowAtoms.set(glowKey(c.aminoChain.id,c.aminoWaterHKey),intensity);
+  state.glowAtoms.set(glowKey(c.carboxylChain.id,car.first.cOLeft.key),intensity);
+  state.glowAtoms.set(glowKey(c.carboxylChain.id,car.first.cOH.key),intensity);
+  return c;
+}
+function hitTest(x,y){for(let i=state.chains.length-1;i>=0;i--){const c=state.chains[i],l=layoutChain(c);for(const a of l.atoms){if(dist(x,y,a.x,a.y)<=atomRadius(a.el)+6)return c}}return null}
+function pointerPos(e){const r=canvas.getBoundingClientRect(),p=e.touches?e.touches[0]:e;return screenToWorld({x:p.clientX-r.left,y:p.clientY-r.top})}
+function onPointerDown(e){if(state.reactionAnimation)return;e.preventDefault();const pos=pointerPos(e),c=hitTest(pos.x,pos.y);if(!c)return;state.chains=state.chains.filter(x=>x!==c);state.chains.push(c);state.drag={chain:c,offsetX:pos.x-c.x,offsetY:pos.y-c.y};updateGlowAtoms(c);draw()}
+function onPointerMove(e){if(!state.drag||state.reactionAnimation)return;e.preventDefault();const pos=pointerPos(e),c=state.drag.chain;c.x=pos.x-state.drag.offsetX;c.y=pos.y-state.drag.offsetY;const cand=updateGlowAtoms(c);state.lastMessage=cand?'Annäherung: abgespaltene Wasser-Atome leuchten grün':'Noch keine passende Überlappung';updateStatus();draw()}
+function onPointerUp(e){if(!state.drag||state.reactionAnimation)return;if(e)e.preventDefault();const c=state.drag.chain;state.drag=null;tryCondensation(c);updateGlowAtoms();draw()}
+function tryCondensation(active){const cand=getReactionCandidate(active);if(!cand){state.lastMessage='Noch keine passende Überlappung';updateGlowAtoms();updateStatus();return}const a=layoutChain(cand.aminoChain),b=layoutChain(cand.carboxylChain);if(groupsOverlap(a.aminoHotspot,b.carboxylHotspot))startCondensationAnimation(cand);else{state.lastMessage='Noch keine passende Überlappung';updateGlowAtoms();updateStatus()}}
+
+function startCondensationAnimation(cand){
+  const amino = cand.aminoChain;
+  const carbox = cand.carboxylChain;
+
+  const newResidues = [...amino.residues, ...carbox.residues];
+  const newChain = {
+    id: state.nextId++,
+    residues: newResidues,
+    x: Math.min(amino.x, carbox.x),
+    y: (amino.y + carbox.y) / 2
+  };
+
+  const target = layoutChain(newChain);
+  const la = layoutChain(amino);
+  const lb = layoutChain(carbox);
+  const movers = [];
+
+  function parseKey(key){
+    const m = key.match(/^r([0-9]+)_(.*)$/);
+    if(!m) return null;
+    return { index: Number(m[1]), suffix: m[2] };
+  }
+
+  function addMappedMover(sourceAtom, targetKey, role='peptide'){
+    if(!sourceAtom || !targetKey) return;
+    const targetAtom = target.atoms.find(a => a.key === targetKey);
+    if(!targetAtom) return;
+    movers.push({ el: sourceAtom.el, from: sourceAtom, to: targetAtom, role });
+  }
+
+  function targetKeyForAminoSource(sourceKey){
+    const p = parseKey(sourceKey);
+    if(!p) return sourceKey;
+
+    const lastIndex = amino.residues.length - 1;
+
+    // Dieses H wird als Wasser abgespalten.
+    if(sourceKey === cand.aminoWaterHKey) return null;
+
+    // Das verbleibende H der terminalen Aminogruppe wird im Produkt zum inneren aminoH.
+    // Dadurch verschwindet es nicht mehr, sondern bewegt sich sichtbar an seine neue Position.
+    if(p.index === lastIndex && (p.suffix === 'aminoH1' || p.suffix === 'aminoH2')){
+      return 'r' + p.index + '_aminoH';
+    }
+
+    return 'r' + p.index + '_' + p.suffix;
+  }
+
+  function targetKeyForCarboxSource(sourceKey){
+    const p = parseKey(sourceKey);
+    if(!p) return sourceKey;
+    return 'r' + (p.index + amino.residues.length) + '_' + p.suffix;
+  }
+
+  for(const sourceAtom of la.atoms){
+    const targetKey = targetKeyForAminoSource(sourceAtom.key);
+    addMappedMover(sourceAtom, targetKey, 'peptide');
+  }
+
+  for(const sourceAtom of lb.atoms){
+    if(sourceAtom.key === lb.first.cOLeft.key) continue;
+    if(sourceAtom.key === lb.first.cOH.key) continue;
+
+    const targetKey = targetKeyForCarboxSource(sourceAtom.key);
+    addMappedMover(sourceAtom, targetKey, 'peptide');
+  }
+
+  const waterO = {
+    el: 'O',
+    x: (la.aminoHotspot.x + lb.carboxylHotspot.x) / 2,
+    y: ((amino.y + carbox.y) / 2) - 145
+  };
+
+  const wh1 = pointFrom(waterO.x, waterO.y, RAD.O + RAD.H, -150);
+  const wh2 = pointFrom(waterO.x, waterO.y, RAD.O + RAD.H, -40);
+
+  const waterAtoms = [
+    atom('H', 'water_H1', wh1.x, wh1.y),
+    atom('O', 'water_O', waterO.x, waterO.y),
+    atom('H', 'water_H2', wh2.x, wh2.y)
+  ];
+
+  const aminoWaterAtom = la.atoms.find(a => a.key === cand.aminoWaterHKey);
+  movers.push(
+    { el:'H', from:aminoWaterAtom, to:waterAtoms[0], role:'water' },
+    { el:'O', from:lb.first.cOLeft, to:waterAtoms[1], role:'water' },
+    { el:'H', from:lb.first.cOH, to:waterAtoms[2], role:'water' }
+  );
+
+  state.chains = state.chains.filter(c => c.id !== amino.id && c.id !== carbox.id);
+  state.glowAtoms.clear();
+
+  state.reactionAnimation = {
+    newChain,
+    waterAtoms,
+    movers,
+    progress: 0,
+    startTime: performance.now(),
+    duration: 1000
+  };
+
+  state.lastMessage = 'Kondensationsreaktion läuft';
+  updateStatus();
+  requestAnimationFrame(stepReactionAnimation);
+}
+function stepReactionAnimation(now){const a=state.reactionAnimation;if(!a)return;const t=Math.min(1,(now-a.startTime)/a.duration);a.progress=ease(t);draw();if(t<1)requestAnimationFrame(stepReactionAnimation);else finishReactionAnimation()}
+function finishReactionAnimation(){const a=state.reactionAnimation;if(!a)return;state.chains.push(a.newChain);state.waters.push({atoms:a.waterAtoms});state.reactionAnimation=null;state.lastMessage=`Peptid gebildet: ${a.newChain.residues.map(r=>r.code).join(' – ')} + H₂O`;updateStatus();draw()}
+
+function setZoom(v){state.scale=Math.max(.45,Math.min(1.4,v));zoomSlider.value=Math.round(state.scale*100);updateStatus();draw()}
+document.getElementById('addRandom').onclick=()=>addAminoAcid(aminoAcids[Math.floor(Math.random()*aminoAcids.length)]);
+document.getElementById('reset').onclick=resetAll;
+document.getElementById('zoomOut').onclick=()=>setZoom(state.scale-.1);
+document.getElementById('zoomIn').onclick=()=>setZoom(state.scale+.1);
+zoomSlider.oninput=e=>setZoom(Number(e.target.value)/100);
+canvas.addEventListener('mousedown',onPointerDown);canvas.addEventListener('mousemove',onPointerMove);window.addEventListener('mouseup',onPointerUp);
+canvas.addEventListener('touchstart',onPointerDown,{passive:false});canvas.addEventListener('touchmove',onPointerMove,{passive:false});window.addEventListener('touchend',onPointerUp,{passive:false});window.addEventListener('resize',resizeCanvas);
+initButtons();resizeCanvas();updateStatus();addAminoAcid(aminoAcids[0]);addAminoAcid(aminoAcids[1]);
+</script>
+</body>
+</html>
