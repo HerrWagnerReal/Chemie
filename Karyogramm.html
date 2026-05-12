@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Interaktives Karyogramm</title>
+  <style>
+    :root{
+      --bg:#eef1f4;--panel:#fff;--line:#cfd7df;--text:#17202a;--muted:#6b7280;
+      --accent:#0ea5e9;--ok:#22c55e;--bad:#ef4444;--slot:#f6f7f9;
+      --chrLight:#afe6e4;--chrDark:#14365e;--chrMid:#3d839b;--centromere:#f28a32;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;height:100vh;overflow:hidden;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--text);background:var(--bg);user-select:none}
+    .app{height:100vh;display:grid;grid-template-columns:31vw 1fr;gap:8px;padding:8px}
+    .panel{min-height:0;position:relative;background:var(--panel);border:1px solid var(--line);border-radius:18px;overflow:hidden;box-shadow:0 8px 24px rgba(15,23,42,.09)}
+    .header{padding:6px 10px;border-bottom:1px solid var(--line);background:linear-gradient(#fff,#f7f9fb)}
+    .headerRow{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:30px}
+    .title{font-weight:800;font-size:15px;line-height:1.1}.sub{font-size:11px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .toolbar{display:flex;flex-wrap:wrap;gap:6px;padding:6px 10px;border-bottom:1px solid var(--line);background:#f9fbfd}
+    button{border:0;border-radius:10px;background:#e0f2fe;color:#075985;padding:6px 9px;font-weight:800;cursor:pointer;font-size:12px;line-height:1.1}button.activeMode{background:#bae6fd;outline:2px solid #38bdf8}button:active{transform:translateY(1px)}
+    #workArea{height:calc(100% - 93px);position:relative;background:radial-gradient(circle at 22px 22px,rgba(14,165,233,.12) 1.4px,transparent 1.4px) 0 0/34px 34px,#fbfdff}
+    .karyoBody{height:calc(100% - 44px);overflow:auto;padding:7px;background:#f8fafc}.karyoGrid{display:grid;grid-template-columns:repeat(8,minmax(62px,1fr));gap:6px;align-items:stretch}
+    .slot{min-height:92px;background:var(--slot);border:2px dashed #cbd5e1;border-radius:16px;position:relative;display:grid;grid-template-rows:1fr 17px;padding:4px 3px 3px;transition:background .15s,border-color .15s,transform .15s}.slot.hover{background:#e0f2fe;border-color:var(--accent);transform:scale(1.025)}.slot.partial{background:#eefbf2;border-color:#86efac;border-style:dashed}.slot.correct{background:#dcfce7;border-color:var(--ok);border-style:solid}.slot.emptyNotNeeded{background:#f3f4f6;border-color:#d1d5db;border-style:dashed;opacity:.72}.slot.wrong{animation:wrong .28s ease-in-out 2}@keyframes wrong{0%,100%{background:var(--slot);border-color:#cbd5e1}50%{background:#fee2e2;border-color:var(--bad)}}
+    .pair{min-height:68px;display:flex;justify-content:center;align-items:center;gap:5px;position:relative}.referenceLayer,.placedLayer{display:flex;justify-content:center;align-items:center;gap:4px;min-height:68px}.referenceLayer.hidden{display:none}.placedLayer:empty{display:none}.sexSlot .placedLayer{gap:3px}.slotLabel{text-align:center;font-size:11px;font-weight:900;color:#334155}.sexSlot .slotLabel{font-size:12px}
+    .chromosome{position:absolute;width:15px;height:var(--render-h);z-index:10;cursor:grab;touch-action:none;transform-origin:center center;will-change:left,top,transform}.chromosome.ychr{width:14px}.chromosome.dragging{position:fixed;cursor:grabbing;z-index:999999;filter:drop-shadow(0 12px 14px rgba(15,23,42,.35));pointer-events:none}.chromosome.locked{pointer-events:none;cursor:default;filter:none}.slot .chromosome{position:relative;left:auto!important;top:auto!important;transform:none!important;z-index:5}.chromosome svg{width:100%;height:100%;display:block;overflow:visible}
+    .chrBody{fill:var(--chrLight);stroke:#26748b;stroke-width:1.25}.ychr .chrBody{fill:#b9d2f2;stroke:#1d4f8f}.bandDark{fill:var(--chrDark)}.bandMid{fill:var(--chrMid)}.bandPale{fill:#d9f5f3}.ychr .bandDark{fill:#3b0f70}.ychr .bandMid{fill:#6d28d9}.ychr .bandPale{fill:#e9d5ff}.centro{fill:var(--centromere);stroke:#8b4b11;stroke-width:.55}.cap{fill:#c9eef0;stroke:#26748b;stroke-width:1.05}.ychr .cap{fill:#d8b4fe;stroke:#1d4f8f}.ghost{opacity:.52;filter:saturate(.9);pointer-events:none}.status{font-size:14px;color:var(--muted);white-space:nowrap}#progress{font-weight:900;color:#111827}.toast{position:absolute;left:50%;top:56px;transform:translateX(-50%);background:rgba(15,23,42,.9);color:white;padding:8px 12px;border-radius:999px;font-size:13px;font-weight:800;opacity:0;pointer-events:none;transition:opacity .15s;z-index:3000}.toast.show{opacity:1}
+    .dragPreview{position:fixed;left:10px;top:10px;z-index:999998;background:rgba(255,255,255,.96);border:1px solid var(--line);border-radius:14px;box-shadow:0 8px 22px rgba(15,23,42,.18);padding:8px 10px;display:none;align-items:center;gap:10px;pointer-events:none}.dragPreview.show{display:flex}.dragPreviewLabel{font-size:12px;font-weight:800;color:#334155}.dragPreviewChr{height:110px;display:flex;align-items:center;justify-content:center}.dragPreviewChr .chromosome{position:relative!important;left:auto!important;top:auto!important;transform:none!important;width:24px;height:calc(var(--render-h) * 1.55);cursor:default}
+    @media(max-width:980px){body{overflow:auto}.app{height:auto;min-height:100vh;grid-template-columns:1fr}.panel:first-child{height:42vh;min-height:280px}.panel:last-child{min-height:58vh}#workArea{height:calc(100% - 125px)}.karyoGrid{grid-template-columns:repeat(6,minmax(58px,1fr))}}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <section class="panel">
+      <div class="header"><div class="headerRow"><div><div class="title">Arbeitsfläche</div><div class="sub">Chromosomen verschieben, vorordnen und zuordnen</div></div></div></div>
+      <div class="toolbar">
+        <button id="autoBtn">Automatisch zuordnen</button>
+        <button id="shuffleBtn">Neu mischen</button>
+        <button id="healthyBtn" class="activeMode">Gesunder Mensch</button>
+        <button id="downBtn">Down-Syndrom</button>
+        <button id="turnerBtn">Turner-Syndrom</button>
+        <button id="patauBtn">Pätau-Syndrom</button>
+      </div>
+      <div id="workArea"></div><div class="toast" id="toast">Nicht das passende Gegenstück</div>
+    </section>
+    <section class="panel">
+      <div class="header"><div class="headerRow"><div><div class="title">Karyogramm</div><div class="sub" id="caseInfo">Fall: Gesunder Mensch</div></div><div class="status"><span id="progress">0/24</span> richtig</div></div></div>
+      <div class="karyoBody"><div class="karyoGrid" id="karyoGrid"></div></div>
+    </section>
+  </div>
+  <div class="dragPreview" id="dragPreview"><div class="dragPreviewLabel">Auswahl</div><div class="dragPreviewChr" id="dragPreviewChr"></div></div>
+
+  <script>
+    (function(){
+      'use strict';
+      const AUTOSOME_COUNT=22;
+      const workArea=document.getElementById('workArea'),grid=document.getElementById('karyoGrid'),progressEl=document.getElementById('progress'),toast=document.getElementById('toast'),caseInfo=document.getElementById('caseInfo'),dragPreview=document.getElementById('dragPreview'),dragPreviewChr=document.getElementById('dragPreviewChr');
+      const modeButtons={healthy:document.getElementById('healthyBtn'),down:document.getElementById('downBtn'),turner:document.getElementById('turnerBtn'),patau:document.getElementById('patauBtn')};
+      let currentMode='healthy',placed=0,dragged=null,pointerId=null,dragOffsetX=0,dragOffsetY=0,startPos=null,activeSlot=null,toastTimer=null,allItems=[];
+
+      function baseAutosomeData(i){
+        const idx=i-1,centro=[.50,.47,.54,.43,.49,.58,.40,.53,.50,.46,.56,.52,.37,.42,.48,.57,.51,.45,.60,.54,.50,.39];
+        const hBase=i<=2?102:i<=5?90:i<=12?78:i<=15?64:i<=20?56:48;
+        const h=hBase+((idx%3)-1)*3;
+        return{number:i,label:String(i),h:h,renderH:Math.round(h*.72),centro:centro[idx],bandSeed:(idx*7+3)%11};
+      }
+      function createAutosomeItem(i,instance){const b=baseAutosomeData(i);return{key:'A'+i+'_'+instance,accepts:'A'+i,slotType:'autosome',type:'autosomeItem',number:i,label:String(i),h:b.h,renderH:b.renderH,centro:b.centro,bandSeed:b.bandSeed};}
+      function createAutosomeSlot(i,required){const b=baseAutosomeData(i);return{key:'SLOT_A'+i,accepts:'A'+i,slotType:'autosome',type:'autosomeSlot',number:i,label:String(i),h:b.h,renderH:b.renderH,centro:b.centro,bandSeed:b.bandSeed,required:required};}
+      function xChr(key){return{key:key,accepts:'X',slotType:'sex',type:'sexItem',sex:'X',label:'X',h:86,renderH:Math.round(86*.72),centro:.34,bandSeed:4};}
+      function yChr(key){return{key:key,accepts:'Y',slotType:'sex',type:'sexItem',sex:'Y',label:'Y',h:42,renderH:Math.round(42*.72),centro:.42,bandSeed:9};}
+      function createSexTargets(xNeed,yNeed){const x=xChr('TARGET_X');x.type='sexSlot';x.required=xNeed;const y=yChr('TARGET_Y');y.type='sexSlot';y.required=yNeed;return[x,y];}
+      function randomNormalSex(){return Math.random()<.5?{items:[xChr('X1'),yChr('Y1')],xNeed:1,yNeed:1}:{items:[xChr('X1'),xChr('X2')],xNeed:2,yNeed:0};}
+      function turnerSex(){return{items:[xChr('X1')],xNeed:1,yNeed:0};}
+      function buildCase(mode){
+        const req=Array(22).fill(1);let sexConfig,label;
+        if(mode==='healthy'){sexConfig=randomNormalSex();label='Fall: Gesunder Mensch';}
+        else if(mode==='down'){req[20]=2;sexConfig=randomNormalSex();label='Fall: Down-Syndrom (Trisomie 21)';}
+        else if(mode==='turner'){sexConfig=turnerSex();label='Fall: Turner-Syndrom (Monosomie X)';}
+        else if(mode==='patau'){req[12]=2;sexConfig=randomNormalSex();label='Fall: Pätau-Syndrom (Trisomie 13)';}
+        const items=[],slots=[];
+        for(let i=1;i<=AUTOSOME_COUNT;i++){slots.push(createAutosomeSlot(i,req[i-1]));for(let n=1;n<=req[i-1];n++)items.push(createAutosomeItem(i,n));}
+        sexConfig.items.forEach(function(x){items.push(x)});createSexTargets(sexConfig.xNeed,sexConfig.yNeed).forEach(function(s){slots.push(s)});
+        return{label:label,items:items,slots:slots};
+      }
+      function createBands(d,h){
+        const bands=[],seed=d.bandSeed,n=Math.max(5,Math.round(h/14));
+        for(let i=0;i<n;i++){const y=8+i*((h-18)/Math.max(1,n-1)),th=3+((seed+i*2)%4),kind=(seed+i)%3;if(Math.abs(y-h*d.centro)>=5)bands.push({y:Math.round(y),th:th,kind:kind});}
+        if(d.slotType==='autosome'){if(d.number===2||d.number===3||d.number===6)bands.push({y:Math.round(h*.68),th:7,kind:0});if(d.number===21||d.number===22)bands.push({y:Math.round(h*.25),th:5,kind:1});}
+        if(d.sex==='Y'){bands.length=0;bands.push({y:Math.round(h*.20),th:5,kind:1},{y:Math.round(h*.44),th:4,kind:2},{y:Math.round(h*.68),th:6,kind:0});}
+        if(d.sex==='X')bands.push({y:Math.round(h*.18),th:5,kind:0},{y:Math.round(h*.72),th:6,kind:1});
+        return bands;
+      }
+      function svg(d){
+        const h=d.h,w=19,armW=10,x=(w-armW)/2,r=armW/2,cY=Math.round(h*d.centro),cH=Math.max(5,Math.round(h*.05));let bandEls='';
+        createBands(d,h).forEach(function(b){const cls=b.kind===0?'bandDark':b.kind===1?'bandMid':'bandPale',y=Math.max(3,Math.min(h-5,b.y));bandEls+='<rect class="'+cls+'" x="'+(x+.8)+'" y="'+y+'" width="'+(armW-1.6)+'" height="'+b.th+'" rx="0.8"/>';});
+        return'<svg viewBox="0 0 '+w+' '+h+'" aria-label="Chromosom '+d.label+'"><rect class="chrBody" x="'+x+'" y="1" width="'+armW+'" height="'+(h-2)+'" rx="'+r+'"/>'+bandEls+'<rect class="centro" x="'+(x-.6)+'" y="'+(cY-cH/2)+'" width="'+(armW+1.2)+'" height="'+cH+'" rx="1"/><ellipse class="cap" cx="'+(x+armW/2)+'" cy="2.5" rx="'+(armW/2-1)+'" ry="2.2"/></svg>';
+      }
+      function makeChromosome(d,type){
+        const el=document.createElement('div');el.className='chromosome '+(d.sex==='Y'?'ychr ':'')+(type==='target'?'ghost':'');el.dataset.key=d.key;el.dataset.accepts=d.accepts||'';el.dataset.sex=d.sex||'';el.style.setProperty('--render-h',d.renderH+'px');el.innerHTML=svg(d);if(type!=='target')el.addEventListener('pointerdown',onPointerDown,{passive:false});return el;
+      }
+      function makeSlot(d){
+        const slot=document.createElement('div');slot.className='slot'+(d.slotType==='sex'?' sexSlot':'');slot.dataset.key=d.key;slot.dataset.accepts=d.accepts||'';slot.dataset.required=String(d.required==null?1:d.required);slot.dataset.current='0';slot.dataset.slotType=d.slotType||'autosome';if(Number(slot.dataset.required)===0)slot.classList.add('emptyNotNeeded');
+        const pair=document.createElement('div');pair.className='pair';const referenceLayer=document.createElement('div');referenceLayer.className='referenceLayer';referenceLayer.appendChild(makeChromosome(d,'target'));const placedLayer=document.createElement('div');placedLayer.className='placedLayer';const label=document.createElement('div');label.className='slotLabel';label.textContent=d.label;pair.appendChild(referenceLayer);pair.appendChild(placedLayer);slot.appendChild(pair);slot.appendChild(label);return slot;
+      }
+      function setActiveModeButton(){Object.keys(modeButtons).forEach(function(mode){modeButtons[mode].classList.toggle('activeMode',mode===currentMode)});}
+      function setup(){
+        placed=0;dragged=null;activeSlot=null;workArea.innerHTML='';grid.innerHTML='';const caseData=buildCase(currentMode);allItems=caseData.items.slice();caseInfo.textContent=caseData.label;setActiveModeButton();updateProgress();caseData.slots.forEach(function(s){grid.appendChild(makeSlot(s))});
+        const shuffled=allItems.slice().sort(function(){return Math.random()-.5}),rect=workArea.getBoundingClientRect(),cols=Math.max(4,Math.floor(rect.width/42));
+        shuffled.forEach(function(d,idx){const el=makeChromosome(d,'drag');workArea.appendChild(el);const col=idx%cols,row=Math.floor(idx/cols),x=14+col*((rect.width-34)/Math.max(1,cols-1))+(Math.random()*8-4),y=12+row*58+(Math.random()*10-5);el.style.left=clamp(x,4,rect.width-26)+'px';el.style.top=clamp(y,4,Math.max(8,rect.height-d.renderH-6))+'px';el.style.transform='rotate('+Math.round(Math.random()*18-9)+'deg)';});
+      }
+      function onPointerDown(e){
+        e.preventDefault();const el=e.currentTarget;if(el.classList.contains('locked'))return;dragged=el;pointerId=e.pointerId;const r=dragged.getBoundingClientRect(),wr=workArea.getBoundingClientRect();dragOffsetX=e.clientX-r.left;dragOffsetY=e.clientY-r.top;startPos={left:parseFloat(dragged.style.left||'0'),top:parseFloat(dragged.style.top||'0'),transform:dragged.style.transform||'',workLeft:wr.left,workTop:wr.top};document.body.appendChild(dragged);dragged.classList.add('dragging');dragged.style.left=(r.left+22)+'px';dragged.style.top=(r.top-65)+'px';dragged.style.transform='rotate(0deg) scale(1.08)';showDragPreview(dragged);window.addEventListener('pointermove',onPointerMove,{passive:false});window.addEventListener('pointerup',onPointerUp,{passive:false});window.addEventListener('pointercancel',onPointerUp,{passive:false});
+      }
+      function onPointerMove(e){if(!dragged||e.pointerId!==pointerId)return;e.preventDefault();dragged.style.left=(e.clientX-dragOffsetX+22)+'px';dragged.style.top=(e.clientY-dragOffsetY-65)+'px';updateDragPreview(e.clientX,e.clientY);const center=getDraggedCenter();const slot=getSlotUnder(center.x,center.y);if(activeSlot&&activeSlot!==slot)activeSlot.classList.remove('hover');activeSlot=slot;if(activeSlot)activeSlot.classList.add('hover');}
+      function onPointerUp(e){
+        if(!dragged||e.pointerId!==pointerId)return;e.preventDefault();window.removeEventListener('pointermove',onPointerMove);window.removeEventListener('pointerup',onPointerUp);window.removeEventListener('pointercancel',onPointerUp);if(activeSlot)activeSlot.classList.remove('hover');
+        hideDragPreview();
+        const center=getDraggedCenter();
+        const drop=getSlotUnder(center.x,center.y);
+        if(drop){const required=Number(drop.dataset.required||'1'),current=Number(drop.dataset.current||'0'),correctType=drop.dataset.accepts===dragged.dataset.accepts,canTakeMore=current<required;if(correctType&&canTakeMore){placeIntoSlot(dragged,drop)}else{dragged.classList.remove('dragging');drop.classList.add('wrong');setTimeout(function(){drop.classList.remove('wrong')},650);showToast('Nicht das passende Gegenstück');returnToStart(dragged)}}else{dragged.classList.remove('dragging');placeOnWorkAreaByVisiblePosition(dragged)}
+        dragged=null;pointerId=null;activeSlot=null;
+      }
+      function showDragPreview(chr){dragPreviewChr.innerHTML='';const copy=chr.cloneNode(true);copy.classList.remove('dragging','locked');dragPreviewChr.appendChild(copy);dragPreview.classList.add('show');}
+      function updateDragPreview(clientX,clientY){const rightSide=clientX<window.innerWidth/2;dragPreview.style.left=(rightSide?clientX+34:clientX-170)+'px';dragPreview.style.top=Math.max(8,clientY-145)+'px';}
+      function hideDragPreview(){dragPreview.classList.remove('show');dragPreviewChr.innerHTML='';}
+      function getDraggedCenter(){const r=dragged.getBoundingClientRect();return{x:r.left+r.width/2,y:r.top+r.height/2};}
+      function placeIntoSlot(chr,slot){
+        const placedLayer=slot.querySelector('.placedLayer'),referenceLayer=slot.querySelector('.referenceLayer');chr.classList.remove('dragging');chr.classList.add('locked');chr.style.removeProperty('left');chr.style.removeProperty('top');chr.style.removeProperty('transform');placedLayer.appendChild(chr);const current=Number(slot.dataset.current||'0')+1,required=Number(slot.dataset.required||'1');slot.dataset.current=String(current);slot.classList.remove('emptyNotNeeded');if(slot.dataset.slotType==='sex')referenceLayer.classList.add('hidden');if(current>=required){slot.classList.remove('partial');slot.classList.add('correct')}else{slot.classList.add('partial');slot.classList.remove('correct')}placed++;updateProgress();
+      }
+      function autoAssign(){const chromosomes=[].slice.call(workArea.querySelectorAll('.chromosome:not(.locked)'));chromosomes.forEach(function(chr){const slot=[].slice.call(document.querySelectorAll('.slot')).find(function(s){return s.dataset.accepts===chr.dataset.accepts&&Number(s.dataset.current||'0')<Number(s.dataset.required||'1')});if(slot)placeIntoSlot(chr,slot)});}
+      function placeOnWorkAreaByVisiblePosition(el){const wr=workArea.getBoundingClientRect(),r=el.getBoundingClientRect();workArea.appendChild(el);el.style.position='';el.style.left=clamp(r.left-wr.left,4,wr.width-26)+'px';el.style.top=clamp(r.top-wr.top,4,Math.max(8,wr.height-r.height-6))+'px';el.style.transform='rotate(0deg)';el.style.transition='';}
+      function placeOnWorkArea(el,clientX,clientY){const wr=workArea.getBoundingClientRect(),elH=el.getBoundingClientRect().height;workArea.appendChild(el);el.style.position='';el.style.left=clamp(clientX-wr.left-dragOffsetX,4,wr.width-26)+'px';el.style.top=clamp(clientY-wr.top-dragOffsetY,4,Math.max(8,wr.height-elH-6))+'px';el.style.transform='rotate(0deg)';el.style.transition='';}
+      function returnToStart(el){const l=startPos.workLeft+startPos.left,t=startPos.workTop+startPos.top;el.style.position='fixed';el.style.transition='left .18s ease, top .18s ease, transform .18s ease';el.style.left=l+'px';el.style.top=t+'px';el.style.transform=startPos.transform||'none';setTimeout(function(){workArea.appendChild(el);el.style.position='';el.style.left=startPos.left+'px';el.style.top=startPos.top+'px';el.style.transform=startPos.transform||'none';el.style.transition=''},190);}
+      function getSlotUnder(x,y){const slots=[].slice.call(document.querySelectorAll('.slot'));for(let i=0;i<slots.length;i++){const r=slots[i].getBoundingClientRect();if(x>=r.left&&x<=r.right&&y>=r.top&&y<=r.bottom)return slots[i]}return null;}
+      function updateProgress(){progressEl.textContent=placed+'/'+allItems.length}function clamp(v,min,max){return Math.max(min,Math.min(max,v))}function showToast(text){toast.textContent=text;toast.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(function(){toast.classList.remove('show')},900)}
+      document.getElementById('autoBtn').addEventListener('click',autoAssign);document.getElementById('shuffleBtn').addEventListener('click',setup);modeButtons.healthy.addEventListener('click',function(){currentMode='healthy';setup()});modeButtons.down.addEventListener('click',function(){currentMode='down';setup()});modeButtons.turner.addEventListener('click',function(){currentMode='turner';setup()});modeButtons.patau.addEventListener('click',function(){currentMode='patau';setup()});window.addEventListener('resize',function(){setTimeout(setup,150)});setup();
+    })();
+  </script>
+</body>
+</html>
