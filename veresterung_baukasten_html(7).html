@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Veresterungs-Baukasten</title>
+<style>
+  :root{
+    --bg:#ececec; --panel:#1f232a; --panel2:#2a2f38; --panel3:#313845;
+    --text:#f5f5f5; --muted:#c7ccd5; --accent:#2a72b7; --danger:#944444;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:Arial,Helvetica,sans-serif;user-select:none;-webkit-user-select:none;touch-action:none}
+  #app{width:100vw;height:100vh;display:grid;grid-template-columns:340px 1fr}
+  #sidebar{background:linear-gradient(180deg,#242932,#181c22);border-right:1px solid #38404d;padding:14px;overflow-y:auto;touch-action:pan-y}
+  h1{margin:0 0 8px;font-size:22px;line-height:1.1}.hint{font-size:13px;color:var(--muted);line-height:1.35;margin-bottom:12px}
+  .toolbar{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}button{border:0;border-radius:12px;padding:10px 12px;font-size:14px;color:var(--text);background:var(--panel2);cursor:pointer}button.primary{background:var(--accent)}button.danger{background:var(--danger)}
+  .zoomlabel{font-size:12px;color:var(--muted);text-align:center;margin-bottom:6px}.zoomrow{display:grid;grid-template-columns:40px 1fr 40px;gap:8px;align-items:center;margin-bottom:12px}.zoomrow input{width:100%}
+  .section{margin:12px 0 6px;color:#fff;font-weight:bold;font-size:14px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.mol-btn{min-height:58px;text-align:left;background:var(--panel3);border:1px solid #404959}.mol-btn strong{display:block;font-size:16px;margin-bottom:2px}.mol-btn span{display:block;font-size:12px;color:var(--muted)}
+  #stageWrap{position:relative;overflow:hidden;background:#ececec}#stage{display:block;width:100%;height:100%;touch-action:none}
+  #status{position:absolute;left:14px;right:14px;bottom:14px;display:flex;gap:8px;flex-wrap:wrap;pointer-events:none}.pill{padding:9px 12px;border-radius:999px;background:rgba(255,255,255,.82);border:1px solid rgba(0,0,0,.12);color:#1f1f1f;backdrop-filter:blur(6px);font-size:14px}.pill.ok{border-color:rgba(45,139,81,.45);color:#1a5f35}.pill.warn{border-color:rgba(148,111,26,.45);color:#72550d}
+  .legend{margin-top:14px;padding-top:12px;border-top:1px solid #38404d;font-size:12px;line-height:1.45;color:var(--muted)}.dot{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:6px;vertical-align:-1px}
+  @media(max-width:950px){#app{grid-template-columns:1fr;grid-template-rows:260px 1fr}#sidebar{border-right:none;border-bottom:1px solid #38404d}.grid{display:flex;overflow-x:auto;gap:8px;padding-bottom:4px}.mol-btn{min-width:150px}.legend{display:none}}
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="sidebar">
+    <h1>Veresterungs-Baukasten</h1>
+    <div class="hint">Ziehe ein Alkanol und eine Alkansäure zusammen. Wenn sich die Hydroxygruppe des Alkanols und die Carboxygruppe der Säure annähern, leuchten die Atome dezent grün, die zu Wasser werden. Es entsteht ein Ester + H₂O.</div>
+    <div class="toolbar"><button id="addRandom" class="primary">Zufällig</button><button id="reset" class="danger">Zurücksetzen</button></div>
+    <div class="zoomlabel" id="zoomLabel">Zoom: 100%</div>
+    <div class="zoomrow"><button id="zoomOut">−</button><input id="zoomSlider" type="range" min="45" max="140" value="100"><button id="zoomIn">+</button></div>
+    <div class="section">Alkanole</div><div class="grid" id="alcoholGrid"></div>
+    <div class="section">Alkansäuren</div><div class="grid" id="acidGrid"></div>
+    <div class="legend"><div><span class="dot" style="background:#e93123"></span>Sauerstoff</div><div><span class="dot" style="background:#f6f6f6;border:1px solid #111"></span>Wasserstoff</div><div><span class="dot" style="background:#000"></span>Kohlenstoff</div></div>
+  </aside>
+  <main id="stageWrap"><canvas id="stage"></canvas><div id="status"><div class="pill" id="countPill">Objekte: 0</div><div class="pill" id="esterPill">Ester: 0</div><div class="pill warn" id="msgPill">Noch keine Veresterung</div></div></main>
+</div>
+<script>
+const canvas=document.getElementById('stage'),ctx=canvas.getContext('2d');
+const alcoholGrid=document.getElementById('alcoholGrid'),acidGrid=document.getElementById('acidGrid');
+const countPill=document.getElementById('countPill'),esterPill=document.getElementById('esterPill'),msgPill=document.getElementById('msgPill'),zoomSlider=document.getElementById('zoomSlider'),zoomLabel=document.getElementById('zoomLabel');
+
+const RAD={H:12,C:22,O:26};
+const COLORS={O:'#e93123',H:'#f6f6f6',C:'#000',TEXT_DARK:'#000',TEXT_LIGHT:'#fff',GRID:'#d9d9d9',GLOW:'#18d36b'};
+const alcohols=[
+  {type:'alcohol',code:'MeOH',name:'Methanol',prefix:'Meth',c:1},
+  {type:'alcohol',code:'EtOH',name:'Ethanol',prefix:'Eth',c:2},
+  {type:'alcohol',code:'PrOH',name:'Propan-1-ol',prefix:'Prop',c:3},
+  {type:'alcohol',code:'BuOH',name:'Butan-1-ol',prefix:'But',c:4},
+  {type:'alcohol',code:'PeOH',name:'Pentan-1-ol',prefix:'Pent',c:5}
+];
+const acids=[
+  {type:'acid',code:'Methansäure',name:'Methansäure',prefix:'Methan',c:1},
+  {type:'acid',code:'Ethansäure',name:'Ethansäure',prefix:'Ethan',c:2},
+  {type:'acid',code:'Propansäure',name:'Propansäure',prefix:'Propan',c:3},
+  {type:'acid',code:'Butansäure',name:'Butansäure',prefix:'Butan',c:4},
+  {type:'acid',code:'Pentansäure',name:'Pentansäure',prefix:'Pentan',c:5}
+];
+const state={objects:[],waters:[],nextId:1,drag:null,reactionAnimation:null,lastMessage:'Noch keine Veresterung',glowAtoms:new Map(),scale:1};
+
+function atomRadius(el){return RAD[el]||20}
+function atom(el,key,x,y){return{el,key,x,y}}
+function dist(x1,y1,x2,y2){return Math.hypot(x2-x1,y2-y1)}
+function pointFrom(x,y,d,deg){const r=deg*Math.PI/180;return{x:x+Math.cos(r)*d,y:y+Math.sin(r)*d}}
+function lerp(a,b,t){return a+(b-a)*t}
+function ease(t){return t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2}
+function screenToWorld(p){return{x:p.x/state.scale,y:p.y/state.scale}}
+
+function resizeCanvas(){const dpr=Math.max(1,Math.min(2,window.devicePixelRatio||1)),r=canvas.getBoundingClientRect();canvas.width=Math.floor(r.width*dpr);canvas.height=Math.floor(r.height*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);draw()}
+function updateStatus(){countPill.textContent=`Objekte: ${state.objects.length}`;esterPill.textContent=`Ester: ${state.objects.filter(o=>o.kind==='ester').length}`;msgPill.textContent=state.lastMessage;msgPill.className=/läuft|gebildet|Annäherung/.test(state.lastMessage)?'pill ok':'pill warn';zoomLabel.textContent=`Zoom: ${Math.round(state.scale*100)}%`}
+function initButtons(){
+  alcohols.forEach(m=>{const b=document.createElement('button');b.className='mol-btn';b.innerHTML=`<strong>${m.name}</strong><span>${m.code}</span>`;b.onclick=()=>addMolecule(m);alcoholGrid.appendChild(b)});
+  acids.forEach(m=>{const b=document.createElement('button');b.className='mol-btn';b.innerHTML=`<strong>${m.name}</strong><span>Alkansäure</span>`;b.onclick=()=>addMolecule(m);acidGrid.appendChild(b)});
+}
+function addMolecule(template){
+  const w=(canvas.clientWidth||1000)/state.scale,h=(canvas.clientHeight||700)/state.scale;
+  const slots=[{x:180,y:150},{x:470,y:150},{x:760,y:150},{x:180,y:360},{x:470,y:360},{x:760,y:360}];
+  const p=slots[state.objects.length%slots.length];
+  state.objects.push({id:state.nextId++,kind:template.type,template,x:Math.max(145,Math.min(p.x,w-280)),y:Math.max(120,Math.min(p.y,h-190))});
+  state.lastMessage=`${template.name} hinzugefügt`;updateGlowAtoms();updateStatus();draw();
+}
+function resetAll(){state.objects=[];state.waters=[];state.nextId=1;state.drag=null;state.reactionAnimation=null;state.glowAtoms.clear();state.lastMessage='Noch keine Veresterung';updateStatus();draw()}
+
+function addHydrogensTo(atoms,center,angles,prefix,startIndex=1){angles.forEach((ang,i)=>{const p=pointFrom(center.x,center.y,atomRadius(center.el)+RAD.H,ang);atoms.push(atom('H',`${prefix}_h${startIndex+i}`,p.x,p.y))})}
+function carbonFrom(base,key,ang,parent='C'){const p=pointFrom(base.x,base.y,RAD[parent]+RAD.C,ang);return atom('C',key,p.x,p.y)}
+function heteroFrom(base,el,key,ang){const p=pointFrom(base.x,base.y,atomRadius(base.el)+atomRadius(el),ang);return atom(el,key,p.x,p.y)}
+
+function hydrogenAnglesForCarbon(i, cCount, leftAttachment=null, rightAttachment=null){
+  const heavyBonds =
+    (i > 0 ? 1 : 0) +
+    (i < cCount - 1 ? 1 : 0) +
+    (i === 0 && leftAttachment ? 1 : 0) +
+    (i === cCount - 1 && rightAttachment ? 1 : 0);
+
+  const hCount = Math.max(0, 4 - heavyBonds);
+
+  if(hCount === 3){
+    if(i === 0 && !leftAttachment) return [180, -90, 90];
+    if(i === cCount - 1 && !rightAttachment) return [0, -90, 90];
+    return [-90, 90, 135];
+  }
+
+  if(hCount === 2) return [-90, 90];
+  if(hCount === 1) return [90];
+  return [];
+}
+
+function buildAlkylChain(cCount,startX,y,prefix,opts={}){
+  const leftAttachment=opts.leftAttachment||null;
+  const rightAttachment=opts.rightAttachment||null;
+  const atoms=[];
+  const carbons=[];
+
+  for(let i=0;i<cCount;i++){
+    const c=atom('C',`${prefix}_c${i+1}`,startX+i*(RAD.C+RAD.C),y);
+    carbons.push(c);
+    atoms.push(c);
+  }
+
+  for(let i=0;i<carbons.length;i++){
+    const c=carbons[i];
+    const angles=hydrogenAnglesForCarbon(i,cCount,leftAttachment,rightAttachment);
+    addHydrogensTo(atoms,c,angles,`${prefix}_c${i+1}`);
+  }
+
+  return {atoms,carbons};
+}
+function layoutAlcohol(obj){
+  const oxy=atom('O','a_oxyOH',obj.x,obj.y);
+  const h=atom('H','a_hOH',oxy.x-(RAD.O+RAD.H),obj.y);
+
+  const chainStartX=oxy.x+RAD.O+RAD.C;
+  const chain=buildAlkylChain(obj.template.c,chainStartX,obj.y,'a',{leftAttachment:'O'});
+  const atoms=[h,oxy,...chain.atoms];
+
+  return {
+    atoms,
+    alcoholO:oxy,
+    alcoholH:h,
+    alcoholHotspot:{x:oxy.x,y:oxy.y,r:60},
+    labelX:chainStartX+((obj.template.c-1)*(RAD.C+RAD.C))/2,
+    labelY:Math.max(...atoms.map(a=>a.y))+48
+  };
+}
+function layoutAcid(obj){
+  const cCount=obj.template.c;
+  const alkylCount=Math.max(0,cCount-1);
+  let atoms=[],carbons=[];
+  let carboxC;
+  if(alkylCount===0){
+    carboxC=atom('C','s_carboxC',obj.x,obj.y);
+    atoms.push(atom('H','s_formylH',carboxC.x-(RAD.C+RAD.H),obj.y),carboxC);
+  }else{
+    const chain=buildAlkylChain(alkylCount,obj.x,obj.y,'s',{rightAttachment:'C'});
+    atoms=chain.atoms; carbons=chain.carbons;
+    const last=carbons[carbons.length-1];
+    carboxC=atom('C','s_carboxC',last.x+RAD.C+RAD.C,obj.y);
+    atoms.push(carboxC);
+  }
+  const oxyTop=atom('O','s_oxyTop',carboxC.x,carboxC.y-(RAD.C+RAD.O));
+  const oxyOH=atom('O','s_oxyOH',carboxC.x+RAD.C+RAD.O,carboxC.y);
+  const hOH=atom('H','s_hOH',oxyOH.x+RAD.O+RAD.H,carboxC.y);
+  atoms.push(oxyTop,oxyOH,hOH);
+  return {atoms,carboxC,oxyTop,oxyOH,hOH,acidHotspot:{x:oxyOH.x,y:oxyOH.y,r:60},labelX:obj.x+Math.max(1,cCount)*44/2,labelY:Math.max(...atoms.map(a=>a.y))+48};
+}
+function layoutEster(obj){
+  const acidC=obj.template.acid.c,alcC=obj.template.alcohol.c;
+  const acidObj={template:{c:acidC},x:obj.x,y:obj.y};
+  const acid=layoutAcid(acidObj);
+  const atoms=acid.atoms.filter(a=>a.key!=='s_oxyOH'&&a.key!=='s_hOH');
+  const esterO=atom('O','e_bridgeO',acid.carboxC.x+RAD.C+RAD.O,acid.carboxC.y);
+  atoms.push(esterO);
+  const startX=esterO.x+RAD.O+RAD.C;
+  const alk=buildAlkylChain(alcC,startX,obj.y,'e',{leftAttachment:'O'});
+  atoms.push(...alk.atoms);
+  return {atoms,labelX:obj.x+180,labelY:Math.max(...atoms.map(a=>a.y))+48};
+}
+function layoutObject(obj){
+  if(obj.kind==='alcohol')return layoutAlcohol(obj);
+  if(obj.kind==='acid')return layoutAcid(obj);
+  return layoutEster(obj);
+}
+
+function glowKey(id,key){return`${id}:${key}`} function glowStrength(id,key){return state.glowAtoms.get(glowKey(id,key))||0}
+function drawParticle(p,glow=0){
+  const r=atomRadius(p.el),fill=COLORS[p.el]||'#000',text=p.el==='H'?COLORS.TEXT_DARK:COLORS.TEXT_LIGHT;
+  ctx.save(); if(glow>0){ctx.globalAlpha=.10+.14*glow;ctx.beginPath();ctx.arc(p.x,p.y,r+5+8*glow,0,Math.PI*2);ctx.fillStyle=COLORS.GLOW;ctx.fill();ctx.globalAlpha=1}
+  ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);ctx.fillStyle=fill;ctx.fill(); if(p.el==='H'){ctx.strokeStyle=glow>0?'rgba(24,211,107,.55)':'#111';ctx.lineWidth=glow>0?2:1.1;ctx.stroke()}
+  ctx.fillStyle=text;ctx.textAlign='center';ctx.textBaseline='middle';ctx.font=`bold ${Math.round(r*.88)}px Arial`;ctx.fillText(p.el,p.x,p.y+1);ctx.restore();
+}
+function drawObject(obj){
+  const l=layoutObject(obj); for(const a of l.atoms)drawParticle(a,glowStrength(obj.id,a.key));
+  ctx.save();ctx.fillStyle='#222';ctx.textAlign='center';ctx.font='bold 14px Arial';ctx.fillText(obj.template.name,l.labelX,l.labelY);ctx.restore();
+}
+function drawWater(w){for(const a of w.atoms)drawParticle(a)}
+function drawReactionAnimation(anim){for(const m of anim.movers){const x=lerp(m.from.x,m.to.x,anim.progress),y=lerp(m.from.y,m.to.y,anim.progress),glow=m.role==='water'&&anim.progress<.68?.45:0;drawParticle({el:m.el,x,y},glow)}}
+function drawGrid(){const w=(canvas.clientWidth||0)/state.scale,h=(canvas.clientHeight||0)/state.scale;ctx.save();ctx.strokeStyle=COLORS.GRID;ctx.lineWidth=1/state.scale;ctx.globalAlpha=.35;const step=48;for(let x=0;x<w;x+=step){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke()}for(let y=0;y<h;y+=step){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke()}ctx.restore()}
+function draw(){ctx.clearRect(0,0,canvas.clientWidth||0,canvas.clientHeight||0);ctx.save();ctx.scale(state.scale,state.scale);drawGrid();for(const w of state.waters)drawWater(w);for(const o of state.objects)drawObject(o);if(state.reactionAnimation)drawReactionAnimation(state.reactionAnimation);ctx.restore()}
+
+function getCandidate(active=null){
+  let best=null; const list=active?[active]:state.objects;
+  for(const a of list){for(const b of state.objects){if(a.id===b.id)continue;
+    let alcohol=null,acid=null;if(a.kind==='alcohol'&&b.kind==='acid'){alcohol=a;acid=b}else if(a.kind==='acid'&&b.kind==='alcohol'){alcohol=b;acid=a}else continue;
+    const al=layoutAlcohol(alcohol),ac=layoutAcid(acid); const d=dist(al.alcoholHotspot.x,al.alcoholHotspot.y,ac.acidHotspot.x,ac.acidHotspot.y),thr=(al.alcoholHotspot.r+ac.acidHotspot.r)*1.35;
+    if(d<thr&&(!best||d<best.distance))best={alcohol,acid,distance:d};
+  }}return best;
+}
+function updateGlowAtoms(active=null){
+  state.glowAtoms.clear(); if(state.reactionAnimation)return null; const c=getCandidate(active); if(!c)return null;
+  const intensity=Math.max(.15,Math.min(.65,1-(c.distance-95)/(190-95))); const al=layoutAlcohol(c.alcohol),ac=layoutAcid(c.acid);
+  state.glowAtoms.set(glowKey(c.alcohol.id,al.alcoholH.key),intensity); state.glowAtoms.set(glowKey(c.acid.id,ac.oxyOH.key),intensity); state.glowAtoms.set(glowKey(c.acid.id,ac.hOH.key),intensity); return c;
+}
+function hitTest(x,y){for(let i=state.objects.length-1;i>=0;i--){const o=state.objects[i],l=layoutObject(o);for(const a of l.atoms){if(dist(x,y,a.x,a.y)<=atomRadius(a.el)+6)return o}}return null}
+function pointerPos(e){const r=canvas.getBoundingClientRect(),p=e.touches?e.touches[0]:e;return screenToWorld({x:p.clientX-r.left,y:p.clientY-r.top})}
+function onPointerDown(e){if(state.reactionAnimation)return;e.preventDefault();const pos=pointerPos(e),o=hitTest(pos.x,pos.y);if(!o)return;state.objects=state.objects.filter(x=>x!==o);state.objects.push(o);state.drag={obj:o,offsetX:pos.x-o.x,offsetY:pos.y-o.y};updateGlowAtoms(o);draw()}
+function onPointerMove(e){if(!state.drag||state.reactionAnimation)return;e.preventDefault();const pos=pointerPos(e),o=state.drag.obj;o.x=pos.x-state.drag.offsetX;o.y=pos.y-state.drag.offsetY;const c=updateGlowAtoms(o);state.lastMessage=c?'Annäherung: Wasser-Atome leuchten grün':'Noch keine passende Überlappung';updateStatus();draw()}
+function onPointerUp(e){if(!state.drag||state.reactionAnimation)return;if(e)e.preventDefault();const o=state.drag.obj;state.drag=null;tryEsterification(o);updateGlowAtoms();draw()}
+function tryEsterification(active){const c=getCandidate(active);if(!c){state.lastMessage='Noch keine passende Überlappung';updateGlowAtoms();updateStatus();return}const al=layoutAlcohol(c.alcohol),ac=layoutAcid(c.acid);if(dist(al.alcoholHotspot.x,al.alcoholHotspot.y,ac.acidHotspot.x,ac.acidHotspot.y)<(al.alcoholHotspot.r+ac.acidHotspot.r)*.75)startEsterification(c);else{state.lastMessage='Noch keine passende Überlappung';updateGlowAtoms();updateStatus()}}
+function esterName(acid,alcohol){return 'Ester'}
+function startEsterification(c){
+  const alcohol=c.alcohol,acid=c.acid,al=layoutAlcohol(alcohol),ac=layoutAcid(acid);
+  const name=esterName(acid.template,alcohol.template);
+  const ester={id:state.nextId++,kind:'ester',template:{acid:acid.template,alcohol:alcohol.template,name},x:Math.min(acid.x,alcohol.x),y:(acid.y+alcohol.y)/2};
+  const target=layoutEster(ester); const movers=[];
+  function add(source,targetKey){const t=target.atoms.find(a=>a.key===targetKey);if(source&&t)movers.push({el:source.el,from:source,to:t,role:'ester'})}
+  for(const a of ac.atoms){if(a.key===ac.oxyOH.key||a.key===ac.hOH.key)continue;add(a,a.key)}
+  for(const a of al.atoms){if(a.key===al.alcoholH.key||a.key===al.alcoholO.key)continue;add(a,'e_'+a.key.replace(/^a_/,'').replace(/^c/,'c'))}
+  add(al.alcoholO,'e_bridgeO');
+  const waterO={el:'O',x:(al.alcoholHotspot.x+ac.acidHotspot.x)/2,y:((acid.y+alcohol.y)/2)-145}; const wh1=pointFrom(waterO.x,waterO.y,RAD.O+RAD.H,-150),wh2=pointFrom(waterO.x,waterO.y,RAD.O+RAD.H,-40);
+  const waterAtoms=[atom('H','water_H1',wh1.x,wh1.y),atom('O','water_O',waterO.x,waterO.y),atom('H','water_H2',wh2.x,wh2.y)];
+  movers.push({el:'H',from:al.alcoholH,to:waterAtoms[0],role:'water'},{el:'O',from:ac.oxyOH,to:waterAtoms[1],role:'water'},{el:'H',from:ac.hOH,to:waterAtoms[2],role:'water'});
+  state.objects=state.objects.filter(o=>o.id!==alcohol.id&&o.id!==acid.id);state.glowAtoms.clear();state.reactionAnimation={ester,waterAtoms,movers,progress:0,startTime:performance.now(),duration:1000};state.lastMessage='Veresterung läuft';updateStatus();requestAnimationFrame(stepReactionAnimation);
+}
+function stepReactionAnimation(now){const a=state.reactionAnimation;if(!a)return;const t=Math.min(1,(now-a.startTime)/a.duration);a.progress=ease(t);draw();if(t<1)requestAnimationFrame(stepReactionAnimation);else finishReactionAnimation()}
+function finishReactionAnimation(){const a=state.reactionAnimation;if(!a)return;state.objects.push(a.ester);state.waters.push({atoms:a.waterAtoms});state.reactionAnimation=null;state.lastMessage='Ester + H₂O gebildet';updateStatus();draw()}
+function setZoom(v){state.scale=Math.max(.45,Math.min(1.4,v));zoomSlider.value=Math.round(state.scale*100);updateStatus();draw()}
+document.getElementById('addRandom').onclick=()=>{addMolecule(Math.random()<.5?alcohols[Math.floor(Math.random()*alcohols.length)]:acids[Math.floor(Math.random()*acids.length)])};document.getElementById('reset').onclick=resetAll;document.getElementById('zoomOut').onclick=()=>setZoom(state.scale-.1);document.getElementById('zoomIn').onclick=()=>setZoom(state.scale+.1);zoomSlider.oninput=e=>setZoom(Number(e.target.value)/100);
+canvas.addEventListener('mousedown',onPointerDown);canvas.addEventListener('mousemove',onPointerMove);window.addEventListener('mouseup',onPointerUp);canvas.addEventListener('touchstart',onPointerDown,{passive:false});canvas.addEventListener('touchmove',onPointerMove,{passive:false});window.addEventListener('touchend',onPointerUp,{passive:false});window.addEventListener('resize',resizeCanvas);
+initButtons();resizeCanvas();updateStatus();addMolecule(alcohols[1]);addMolecule(acids[1]);
+</script>
+</body>
+</html>
