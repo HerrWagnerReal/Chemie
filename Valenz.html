@@ -1,0 +1,1345 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Strukturformel-Feldzeichner</title>
+<style>
+:root{
+  --bg:#f3f5f8;
+  --panel:#fff;
+  --text:#172033;
+  --muted:#6b7280;
+  --border:#cfd6df;
+  --accent:#2457d6;
+  --atom:#7c3aed;
+  --bond:#0f766e;
+  --bad:#dc2626;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{
+  margin:0;padding:0;background:var(--bg);color:var(--text);
+  font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  overscroll-behavior:none;
+}
+body{padding:8px;min-height:100vh;user-select:none;-webkit-user-select:none}
+.app{max-width:1100px;margin:0 auto}
+.top{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-bottom:7px}
+h1{font-size:1.18rem;margin:0}
+.buttons{display:flex;gap:7px;flex-wrap:wrap}
+button{
+  min-height:42px;padding:0 13px;border:1px solid var(--border);border-radius:10px;
+  background:#fff;color:var(--text);font:inherit;font-size:14px;touch-action:manipulation
+}
+button.primary{background:#111827;color:#fff;border-color:#111827}
+.help{font-size:13px;line-height:1.35;color:var(--muted);margin:0 0 8px}
+
+.shell{
+  height:min(72vh,720px);
+  min-height:440px;
+  overflow:auto;
+  border:1px solid var(--border);
+  border-radius:16px;
+  background:#e9edf3;
+  overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;
+  touch-action:none;
+}
+.stage{
+  position:relative;
+  width:1500px;
+  height:1500px;
+}
+.board{
+  position:absolute;
+  left:0;
+  top:0;
+  width:1500px;
+  height:1500px;
+  transform-origin:0 0;
+  will-change:transform;
+  background:
+    linear-gradient(#eef1f5 1px,transparent 1px),
+    linear-gradient(90deg,#eef1f5 1px,transparent 1px),
+    #fff;
+  background-size:50px 50px;
+}
+.field{
+  position:absolute;
+  transform:translate(-50%,-50%);
+  border:0;
+  border-radius:14px;
+  overflow:visible;
+}
+.field.atom{background:rgba(124,58,237,.14)}
+.field.bond{background:rgba(15,118,110,.14)}
+.field.atom{width:96px;height:96px}
+.field.bond.horizontal{width:94px;height:62px}
+.field.bond.vertical{width:62px;height:94px}
+.field.atom.recognized{background:rgba(124,58,237,.08)}
+.field.bond.recognized{background:rgba(15,118,110,.08)}
+.field.invalid{background:rgba(220,38,38,.12)}
+.field canvas{
+  width:100%;height:100%;display:block;touch-action:none;border-radius:12px;
+}
+.tag,.result,.clearMini{display:none}
+.connector{
+  position:absolute;
+  background:#d8dee8;
+  transform-origin:center;
+  pointer-events:none;
+}
+.connector.h{height:3px}
+.connector.v{width:3px}
+
+.summary{
+  display:grid;grid-template-columns:1fr;gap:9px;margin-top:9px
+}
+.card{background:#fff;border:1px solid var(--border);border-radius:13px;padding:11px}
+.label{display:none}
+.value{font-size:18px;font-weight:800;margin-top:3px}
+.detail{font-size:13px;color:var(--muted);margin-top:4px;line-height:1.35}
+.bad{color:var(--bad);font-weight:700}
+
+@media(max-width:700px){
+  .summary{grid-template-columns:1fr}
+  .shell{height:67vh;min-height:420px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top">
+    
+    <div class="buttons">
+      <button id="centerBtn" type="button">Zum Start</button>
+      <button id="resetBtn" class="primary" type="button">Neu starten</button>
+    </div>
+  </div>
+
+
+
+  <div class="shell" id="shell">
+    <div class="stage" id="stage">
+      <div class="board" id="board"></div>
+    </div>
+  </div>
+
+  <div class="summary">
+    <div class="card">
+      <div class="value" id="structureText">0 Atome · 0 Bindungen</div>
+      <div class="detail" id="formulaText">–</div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const board=document.getElementById('board');
+  const stage=document.getElementById('stage');
+  const shell=document.getElementById('shell');
+  const structureText=document.getElementById('structureText');
+  const formulaText=document.getElementById('formulaText');
+  const statusText=document.getElementById('statusText');
+  const detailText=document.getElementById('detailText');
+
+  const BOARD=1500;
+  const ORIGIN=750;
+  const STEP=180;
+  const ATOM_OFFSET=STEP;
+  const BOND_OFFSET=STEP/2;
+
+  const atoms=new Map();
+  const bonds=new Map();
+  const fields=new Map();
+  const connectors=[];
+
+  let fieldSeq=1;
+
+  // Zwei-Finger-Panning
+  const touchPointers=new Map();
+  let twoFingerPan=false;
+  let lastPanCenter=null;
+
+  // Zwei-Finger-Pinch + Pan
+  let zoom=1;
+  const MIN_ZOOM=.5;
+  const MAX_ZOOM=2.0;
+  let pinchStartDistance=0;
+  let pinchStartZoom=1;
+  let pinchWorldPoint=null;
+
+  const dirs=[
+    {name:'N',dx:0,dy:-1,orientation:'vertical'},
+    {name:'E',dx:1,dy:0,orientation:'horizontal'},
+    {name:'S',dx:0,dy:1,orientation:'vertical'},
+    {name:'W',dx:-1,dy:0,orientation:'horizontal'}
+  ];
+
+  const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+
+  function atomKey(gx,gy){ return gx+','+gy; }
+  function bondKey(ax,ay,bx,by){
+    const a=atomKey(ax,ay),b=atomKey(bx,by);
+    return a<b ? a+'|'+b : b+'|'+a;
+  }
+  function boardXY(gx,gy){
+    return {x:ORIGIN+gx*STEP,y:ORIGIN+gy*STEP};
+  }
+
+  function panCenter(){
+    const pts=[...touchPointers.values()];
+    if(pts.length<2)return null;
+    return {
+      x:(pts[0].x+pts[1].x)/2,
+      y:(pts[0].y+pts[1].y)/2
+    };
+  }
+
+  function panDistance(){
+    const pts=[...touchPointers.values()];
+    if(pts.length<2)return 0;
+    return Math.hypot(pts[1].x-pts[0].x,pts[1].y-pts[0].y);
+  }
+
+  function applyZoom(value){
+    zoom=clamp(value,MIN_ZOOM,MAX_ZOOM);
+    board.style.transform=`scale(${zoom})`;
+    stage.style.width=(BOARD*zoom)+'px';
+    stage.style.height=(BOARD*zoom)+'px';
+  }
+
+  function clampScroll(){
+    shell.scrollLeft=clamp(shell.scrollLeft,0,Math.max(0,BOARD*zoom-shell.clientWidth));
+    shell.scrollTop=clamp(shell.scrollTop,0,Math.max(0,BOARD*zoom-shell.clientHeight));
+  }
+
+  function cancelActiveDrawing(){
+    for(const state of fields.values()){
+      if(state.active){
+        const idx=state.strokes.indexOf(state.active);
+        if(idx>=0)state.strokes.splice(idx,1);
+        state.active=null;
+        clearTimeout(state.timer);
+        redrawField(state);
+        state.result.textContent=state.type==='atom'
+          ? (atoms.get(atomKey(state.gx,state.gy))?.element || '…')
+          : (bonds.get(state.key)?.order ? ({1:'—',2:'=',3:'≡'}[bonds.get(state.key).order]) : '…');
+      }
+    }
+  }
+
+  function setStatus(main,detail=''){
+    if(statusText)statusText.textContent=main;
+    if(detailText)detailText.textContent=detail;
+  }
+
+  function centerBoard(){
+    requestAnimationFrame(()=>{
+      shell.scrollLeft=clamp(ORIGIN*zoom-shell.clientWidth/2,0,Math.max(0,BOARD*zoom-shell.clientWidth));
+      shell.scrollTop=clamp(ORIGIN*zoom-shell.clientHeight/2,0,Math.max(0,BOARD*zoom-shell.clientHeight));
+    });
+  }
+
+  function redrawField(state){
+    const c=state.canvas;
+    const ctx=c.getContext('2d');
+    ctx.clearRect(0,0,c.width,c.height);
+    ctx.lineCap='round';
+    ctx.lineJoin='round';
+    ctx.strokeStyle='#111827';
+    ctx.lineWidth=state.type==='atom'?5:6;
+
+    for(const stroke of state.strokes){
+      if(!stroke.points.length)continue;
+      ctx.beginPath();
+      ctx.moveTo(stroke.points[0].x,stroke.points[0].y);
+      for(let i=1;i<stroke.points.length;i++){
+        ctx.lineTo(stroke.points[i].x,stroke.points[i].y);
+      }
+      ctx.stroke();
+    }
+  }
+
+  function isScribble(stroke){
+    const pts=stroke.points;
+    if(!pts || pts.length<10)return false;
+
+    let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity,L=0;
+    for(let i=0;i<pts.length;i++){
+      const p=pts[i];
+      x0=Math.min(x0,p.x); y0=Math.min(y0,p.y);
+      x1=Math.max(x1,p.x); y1=Math.max(y1,p.y);
+      if(i)L+=dist(pts[i-1],p);
+    }
+
+    const diag=Math.hypot(x1-x0,y1-y0);
+    if(diag<18)return false;
+
+    let xReversals=0,yReversals=0,sharpTurns=0;
+    let lastDx=0,lastDy=0,lastAngle=null;
+
+    for(let i=2;i<pts.length;i++){
+      const a=pts[i-2],b=pts[i-1],c=pts[i];
+      const dx1=b.x-a.x,dy1=b.y-a.y;
+      const dx2=c.x-b.x,dy2=c.y-b.y;
+
+      if(Math.abs(dx1)>2 && Math.abs(dx2)>2 && Math.sign(dx1)!==Math.sign(dx2))xReversals++;
+      if(Math.abs(dy1)>2 && Math.abs(dy2)>2 && Math.sign(dy1)!==Math.sign(dy2))yReversals++;
+
+      const len1=Math.hypot(dx1,dy1),len2=Math.hypot(dx2,dy2);
+      if(len1>2 && len2>2){
+        const dot=(dx1*dx2+dy1*dy2)/(len1*len2);
+        const ang=Math.acos(clamp(dot,-1,1));
+        if(ang>1.0)sharpTurns++;
+      }
+
+      lastDx=dx2; lastDy=dy2;
+    }
+
+    const complexity=L/diag;
+
+    // Deliberately requires several reversals so a normal C or O is preserved.
+    return (
+      complexity>2.7 &&
+      (
+        xReversals>=4 ||
+        yReversals>=4 ||
+        (xReversals+yReversals>=5 && sharpTurns>=5)
+      )
+    );
+  }
+
+  function attachDrawing(state){
+    const canvas=state.canvas;
+
+    function pointerPos(ev){
+      const r=canvas.getBoundingClientRect();
+      return {
+        x:(ev.clientX-r.left)*canvas.width/r.width,
+        y:(ev.clientY-r.top)*canvas.height/r.height
+      };
+    }
+
+    canvas.addEventListener('pointerdown',ev=>{
+      if(twoFingerPan)return;
+      ev.preventDefault();
+      canvas.setPointerCapture?.(ev.pointerId);
+      state.field.classList.add('focused');
+      state.field.classList.remove('invalid');
+      state.active={points:[pointerPos(ev)]};
+      state.strokes.push(state.active);
+      state.result.textContent='…';
+      clearTimeout(state.timer);
+    });
+
+    canvas.addEventListener('pointermove',ev=>{
+      if(twoFingerPan)return;
+      if(!state.active)return;
+      ev.preventDefault();
+      const p=pointerPos(ev);
+      const last=state.active.points[state.active.points.length-1];
+      if(dist(p,last)>1.5){
+        state.active.points.push(p);
+        redrawField(state);
+      }
+    });
+
+    function finish(){
+      if(twoFingerPan){
+        state.active=null;
+        return;
+      }
+      if(!state.active)return;
+
+      const finishedStroke=state.active;
+      state.active=null;
+
+      if(isScribble(finishedStroke)){
+        clearField(state);
+
+        // Short visual acknowledgement only, no permanent UI.
+        state.field.animate(
+          [
+            {opacity:1},
+            {opacity:.35},
+            {opacity:1}
+          ],
+          {duration:180}
+        );
+        return;
+      }
+
+      redrawField(state);
+      clearTimeout(state.timer);
+      state.timer=setTimeout(()=>recognizeField(state),220);
+    }
+    canvas.addEventListener('pointerup',finish);
+    canvas.addEventListener('pointercancel',finish);
+  }
+
+  function makeField(type,x,y,meta={}){
+    const field=document.createElement('div');
+    field.className='field '+type+' focused';
+    if(type==='bond')field.classList.add(meta.orientation);
+
+    const tag=document.createElement('div');
+    tag.className='tag';
+    tag.textContent=type==='atom'?'ATOM':'BINDUNG';
+
+    const canvas=document.createElement('canvas');
+    if(type==='atom'){
+      canvas.width=192; canvas.height=192;
+    }else if(meta.orientation==='horizontal'){
+      canvas.width=188; canvas.height=124;
+    }else{
+      canvas.width=124; canvas.height=188;
+    }
+
+    const result=document.createElement('div');
+    result.className='result';
+    result.textContent='…';
+
+    const clear=document.createElement('button');
+    clear.type='button';
+    clear.className='clearMini';
+    clear.textContent='×';
+    clear.setAttribute('aria-label','Feld leeren');
+
+    field.append(tag,canvas,result,clear);
+    board.appendChild(field);
+    field.style.left=x+'px';
+    field.style.top=y+'px';
+
+    const state={
+      id:'f'+fieldSeq++,
+      type,field,canvas,result,clear,
+      strokes:[],active:null,timer:null,
+      ...meta
+    };
+    fields.set(state.id,state);
+    attachDrawing(state);
+
+    clear.addEventListener('click',ev=>{
+      ev.stopPropagation();
+      clearField(state);
+    });
+
+    return state;
+  }
+
+  function makeConnector(x1,y1,x2,y2){
+    const c=document.createElement('div');
+    c.className='connector '+(Math.abs(x2-x1)>Math.abs(y2-y1)?'h':'v');
+
+    if(c.classList.contains('h')){
+      c.style.left=Math.min(x1,x2)+'px';
+      c.style.top=((y1+y2)/2-1.5)+'px';
+      c.style.width=Math.abs(x2-x1)+'px';
+    }else{
+      c.style.left=((x1+x2)/2-1.5)+'px';
+      c.style.top=Math.min(y1,y2)+'px';
+      c.style.height=Math.abs(y2-y1)+'px';
+    }
+    board.appendChild(c);
+    connectors.push(c);
+  }
+
+  function createAtom(gx,gy,parentBond=null){
+    const key=atomKey(gx,gy);
+    if(atoms.has(key))return atoms.get(key);
+
+    const p=boardXY(gx,gy);
+    const field=makeField('atom',p.x,p.y,{gx,gy,parentBond});
+    const atom={gx,gy,element:null,field,parentBond};
+    atoms.set(key,atom);
+    return atom;
+  }
+
+  function createBondFrom(atom,dir){
+    const bx=atom.gx+dir.dx;
+    const by=atom.gy+dir.dy;
+    const key=bondKey(atom.gx,atom.gy,bx,by);
+    if(bonds.has(key))return;
+
+    const p=boardXY(atom.gx,atom.gy);
+    const x=p.x+dir.dx*BOND_OFFSET;
+    const y=p.y+dir.dy*BOND_OFFSET;
+
+    const field=makeField('bond',x,y,{
+      orientation:dir.orientation,
+      ax:atom.gx,ay:atom.gy,
+      bx,by,
+      dir:dir.name,
+      key
+    });
+
+    const bond={
+      key,
+      ax:atom.gx,ay:atom.gy,
+      bx,by,
+      order:null,
+      field
+    };
+    bonds.set(key,bond);
+
+    // subtle connector segments from atom to bond box
+    const atomP=boardXY(atom.gx,atom.gy);
+    const bondP={x,y};
+    makeConnector(
+      atomP.x+dir.dx*48,
+      atomP.y+dir.dy*48,
+      bondP.x-dir.dx*(dir.orientation==='horizontal'?47:31),
+      bondP.y-dir.dy*(dir.orientation==='vertical'?47:31)
+    );
+  }
+
+  function ensureBondFields(atom){
+    if(!atom.element)return;
+    dirs.forEach(dir=>createBondFrom(atom,dir));
+  }
+
+  function ensureNextAtom(bond){
+    const key=atomKey(bond.bx,bond.by);
+    if(atoms.has(key))return atoms.get(key);
+
+    const next=createAtom(bond.bx,bond.by,bond.key);
+
+    const a=boardXY(bond.ax,bond.ay);
+    const b=boardXY(bond.bx,bond.by);
+    const mid={x:(a.x+b.x)/2,y:(a.y+b.y)/2};
+
+    const dx=Math.sign(b.x-a.x),dy=Math.sign(b.y-a.y);
+    makeConnector(
+      mid.x+dx*(bond.field.orientation==='horizontal'?47:31),
+      mid.y+dy*(bond.field.orientation==='vertical'?47:31),
+      b.x-dx*48,
+      b.y-dy*48
+    );
+
+    return next;
+  }
+
+  function strokeFeature(stroke){
+    const pts=stroke.points;
+    let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity,L=0;
+
+    for(let i=0;i<pts.length;i++){
+      const p=pts[i];
+      x0=Math.min(x0,p.x); y0=Math.min(y0,p.y);
+      x1=Math.max(x1,p.x); y1=Math.max(y1,p.y);
+      if(i)L+=dist(pts[i-1],p);
+    }
+
+    const w=x1-x0,h=y1-y0,diag=Math.hypot(w,h);
+    const start=pts[0],end=pts[pts.length-1];
+    const chord=dist(start,end);
+
+    const mx=pts.reduce((s,p)=>s+p.x,0)/pts.length;
+    const my=pts.reduce((s,p)=>s+p.y,0)/pts.length;
+
+    let sxx=0,syy=0,sxy=0;
+    pts.forEach(p=>{
+      const dx=p.x-mx,dy=p.y-my;
+      sxx+=dx*dx; syy+=dy*dy; sxy+=dx*dy;
+    });
+
+    const angle=.5*Math.atan2(2*sxy,sxx-syy);
+    const ux=Math.cos(angle),uy=Math.sin(angle),vx=-uy,vy=ux;
+
+    let lo=Infinity,hi=-Infinity,sumD2=0;
+    pts.forEach(p=>{
+      const dx=p.x-mx,dy=p.y-my;
+      const t=dx*ux+dy*uy;
+      const d=dx*vx+dy*vy;
+      lo=Math.min(lo,t); hi=Math.max(hi,t); sumD2+=d*d;
+    });
+
+    const span=hi-lo;
+    const rms=Math.sqrt(sumD2/Math.max(1,pts.length));
+    const linearity=span/Math.max(1,L);
+
+    return {
+      pts,x0,y0,x1,y1,w,h,diag,L,chord,
+      angle:(angle+Math.PI)%Math.PI,
+      span,rms,linearity,start,end
+    };
+  }
+
+  function angleDifference(a,b){
+    let d=Math.abs(a-b)%Math.PI;
+    return Math.min(d,Math.PI-d);
+  }
+
+  function recognizeAtom(strokes){
+    const fs=strokes.filter(s=>s.points.length>2).map(strokeFeature);
+    if(!fs.length)return null;
+
+    // H: two mostly vertical strokes + one mostly horizontal.
+    if(fs.length>=3){
+      const vertical=fs.filter(f=>angleDifference(f.angle,Math.PI/2)<0.45 && f.span>28);
+      const horizontal=fs.filter(f=>angleDifference(f.angle,0)<0.45 && f.span>20);
+
+      if(vertical.length>=2 && horizontal.length>=1){
+        const vs=vertical.sort((a,b)=>(b.span-a.span)).slice(0,2);
+        const bar=horizontal.sort((a,b)=>b.span-a.span)[0];
+
+        const x1=(vs[0].x0+vs[0].x1)/2;
+        const x2=(vs[1].x0+vs[1].x1)/2;
+        const left=Math.min(x1,x2),right=Math.max(x1,x2),gap=right-left;
+        const bx0=Math.min(bar.start.x,bar.end.x);
+        const bx1=Math.max(bar.start.x,bar.end.x);
+
+        // Bar only needs to bridge most of the gap, not actually intersect both stems.
+        const missing=Math.max(0,bx0-left)+Math.max(0,right-bx1);
+        if(gap>12 && missing<gap*.75){
+          return {element:'H',confidence:0.95};
+        }
+      }
+    }
+
+    // C and O are normally one continuous stroke.
+    if(fs.length===1){
+      const f=fs[0];
+      if(f.diag<18)return null;
+
+      const close=f.chord/Math.max(1,f.diag);
+      const curl=f.L/Math.max(1,f.diag);
+      const aspect=f.w/Math.max(1,f.h);
+
+      // Closed loop -> O
+      if(close<0.45 && curl>1.45 && aspect>0.35 && aspect<2.4){
+        return {element:'O',confidence:0.95};
+      }
+
+      // Any reasonably curved, open single stroke becomes C.
+      // In this field there are only C/O/H, so we can be deliberately tolerant.
+      if(curl>1.05 && close>0.18 && aspect>0.2 && aspect<2.6){
+        return {element:'C',confidence:0.90};
+      }
+    }
+
+    // fallback: if not H and exactly one non-line-like stroke, prefer C.
+    if(fs.length===1 && fs[0].linearity<0.82){
+      return {element:'C',confidence:0.72};
+    }
+
+    return null;
+  }
+
+  function recognizeBond(strokes,orientation){
+    const fs=strokes.filter(s=>s.points.length>2).map(strokeFeature);
+    if(fs.length<1||fs.length>3)return null;
+
+    const expected=orientation==='horizontal'?0:Math.PI/2;
+    const lineLike=fs.filter(f=>
+      f.span>20 &&
+      f.linearity>0.52 &&
+      f.rms<Math.max(14,f.span*.18) &&
+      angleDifference(f.angle,expected)<0.55
+    );
+
+    if(lineLike.length!==fs.length)return null;
+
+    // For multiple bonds, strokes should be broadly parallel.
+    if(lineLike.length>1){
+      const base=lineLike[0].angle;
+      if(lineLike.some(f=>angleDifference(f.angle,base)>0.35))return null;
+    }
+
+    return {order:lineLike.length,confidence:0.96};
+  }
+
+  function recognizeField(state){
+    if(!state.strokes.length)return;
+
+    if(state.type==='atom'){
+      const r=recognizeAtom(state.strokes);
+      if(!r){
+        state.field.classList.add('invalid');
+        state.field.classList.remove('recognized');
+        state.result.textContent='?';
+        setStatus('Atom nicht erkannt','In diesem Feld sind nur C, O oder H erlaubt.');
+        return;
+      }
+
+      state.field.classList.remove('invalid','focused');
+      state.field.classList.add('recognized');
+      state.result.textContent=r.element;
+
+      const atom=atoms.get(atomKey(state.gx,state.gy));
+      atom.element=r.element;
+
+      ensureBondFields(atom);
+      setStatus(`${r.element} erkannt`,'Vier mögliche Bindungsrichtungen wurden erzeugt.');
+      updateSummary();
+    }else{
+      const r=recognizeBond(state.strokes,state.orientation);
+      if(!r){
+        state.field.classList.add('invalid');
+        state.field.classList.remove('recognized');
+        state.result.textContent='?';
+        setStatus('Bindung nicht erkannt','Zeichne 1, 2 oder 3 ungefähr parallele Striche in Feldrichtung.');
+        return;
+      }
+
+      state.field.classList.remove('invalid','focused');
+      state.field.classList.add('recognized');
+      const labels={1:'—',2:'=',3:'≡'};
+      state.result.textContent=labels[r.order];
+
+      const bond=bonds.get(state.key);
+      bond.order=r.order;
+
+      const next=ensureNextAtom(bond);
+      setStatus(
+        r.order===1?'Einfachbindung erkannt':r.order===2?'Doppelbindung erkannt':'Dreifachbindung erkannt',
+        'Das nächste Atomfeld wurde erzeugt.'
+      );
+
+      // Scroll gently toward new atom.
+      const p=boardXY(next.gx,next.gy);
+      requestAnimationFrame(()=>{
+        shell.scrollTo({
+          left:clamp(p.x*zoom-shell.clientWidth/2,0,Math.max(0,BOARD*zoom-shell.clientWidth)),
+          top:clamp(p.y*zoom-shell.clientHeight/2,0,Math.max(0,BOARD*zoom-shell.clientHeight)),
+          behavior:'smooth'
+        });
+      });
+
+      updateSummary();
+    }
+  }
+
+  function clearField(state){
+    state.strokes=[];
+    state.active=null;
+    clearTimeout(state.timer);
+    state.field.classList.remove('recognized','invalid');
+    state.field.classList.add('focused');
+    state.result.textContent='…';
+    redrawField(state);
+
+    if(state.type==='atom'){
+      const atom=atoms.get(atomKey(state.gx,state.gy));
+      if(atom)atom.element=null;
+      setStatus('Atomfeld geleert','Schreibe C, O oder H.');
+    }else{
+      const bond=bonds.get(state.key);
+      if(bond)bond.order=null;
+      setStatus('Bindungsfeld geleert','Zeichne 1, 2 oder 3 Striche.');
+    }
+    updateSummary();
+  }
+
+  function buildMoleculeGraph(){
+    const activeAtoms=[...atoms.values()].filter(a=>a.element);
+    const nodeByKey=new Map();
+    const nodes=activeAtoms.map((a,i)=>{
+      const n={id:i,key:atomKey(a.gx,a.gy),gx:a.gx,gy:a.gy,element:a.element};
+      nodeByKey.set(n.key,n);
+      return n;
+    });
+
+    const edges=[];
+    for(const b of bonds.values()){
+      if(!b.order)continue;
+      const a=nodeByKey.get(atomKey(b.ax,b.ay));
+      const c=nodeByKey.get(atomKey(b.bx,b.by));
+      if(!a||!c)continue;
+      edges.push({a:a.id,b:c.id,order:b.order});
+    }
+
+    const adj=nodes.map(()=>[]);
+    edges.forEach((e,i)=>{
+      adj[e.a].push({to:e.b,order:e.order,edge:i});
+      adj[e.b].push({to:e.a,order:e.order,edge:i});
+    });
+    return{nodes,edges,adj};
+  }
+
+  function inferredFormula(graph){
+    const valence={C:4,O:2,H:1};
+    const counts={C:0,H:0,O:0};
+    let invalid=false;
+
+    graph.nodes.forEach((n,i)=>{
+      counts[n.element]=(counts[n.element]||0)+1;
+      const used=graph.adj[i].reduce((s,e)=>s+e.order,0);
+      const max=valence[n.element];
+      if(used>max)invalid=true;
+      const missing=Math.max(0,max-used);
+      if(n.element!=='H')counts.H+=missing;
+    });
+
+    const formula=['C','H','O']
+      .filter(e=>counts[e]>0)
+      .map(e=>e+(counts[e]>1?counts[e]:''))
+      .join('');
+
+    return{counts,formula,invalid};
+  }
+
+  function connectedGraph(graph){
+    if(!graph.nodes.length)return false;
+    const seen=new Set([0]),stack=[0];
+    while(stack.length){
+      const x=stack.pop();
+      for(const e of graph.adj[x]){
+        if(!seen.has(e.to)){seen.add(e.to);stack.push(e.to)}
+      }
+    }
+    return seen.size===graph.nodes.length;
+  }
+
+  function hasCycle(graph, allowedElements=null){
+    const allowed=new Set(
+      graph.nodes.filter(n=>!allowedElements||allowedElements.includes(n.element)).map(n=>n.id)
+    );
+    const seen=new Set();
+
+    function dfs(v,parent){
+      seen.add(v);
+      for(const e of graph.adj[v]){
+        if(!allowed.has(e.to))continue;
+        if(!seen.has(e.to)){
+          if(dfs(e.to,v))return true;
+        }else if(e.to!==parent){
+          return true;
+        }
+      }
+      return false;
+    }
+
+    for(const id of allowed){
+      if(!seen.has(id)&&dfs(id,-1))return true;
+    }
+    return false;
+  }
+
+  const stem={
+    1:'meth',2:'eth',3:'prop',4:'but',5:'pent',6:'hex',
+    7:'hept',8:'oct',9:'non',10:'dec',11:'undec',12:'dodec'
+  };
+  const alkyl={
+    1:'Methyl',2:'Ethyl',3:'Propyl',4:'Butyl',5:'Pentyl',6:'Hexyl'
+  };
+  const alkoxy={
+    1:'Methoxy',2:'Ethoxy',3:'Propoxy',4:'Butoxy',5:'Pentoxy',6:'Hexoxy'
+  };
+  const multiPrefix={2:'di',3:'tri',4:'tetra',5:'penta',6:'hexa'};
+
+  function carbonIds(graph){
+    return graph.nodes.filter(n=>n.element==='C').map(n=>n.id);
+  }
+
+  function carbonNeighbors(graph,id){
+    return graph.adj[id].filter(e=>graph.nodes[e.to].element==='C');
+  }
+
+  function allSimpleCarbonPaths(graph, requiredIds=[]){
+    const cids=carbonIds(graph);
+    if(!cids.length)return [];
+    const required=new Set(requiredIds);
+    const paths=[];
+
+    function dfs(cur,visited,path){
+      let extended=false;
+      for(const e of carbonNeighbors(graph,cur)){
+        if(visited.has(e.to))continue;
+        extended=true;
+        visited.add(e.to);
+        path.push(e.to);
+        dfs(e.to,visited,path);
+        path.pop();
+        visited.delete(e.to);
+      }
+      if(!extended){
+        if([...required].every(x=>path.includes(x)))paths.push([...path]);
+      }
+    }
+
+    for(const start of cids){
+      dfs(start,new Set([start]),[start]);
+    }
+
+    // remove reverse duplicates
+    const uniq=new Map();
+    for(const p of paths){
+      const a=p.join(','),b=[...p].reverse().join(',');
+      const k=a<b?a:b;
+      if(!uniq.has(k))uniq.set(k,p);
+    }
+    return [...uniq.values()];
+  }
+
+  function bondOrderBetween(graph,a,b){
+    const e=graph.adj[a].find(x=>x.to===b);
+    return e?.order||0;
+  }
+
+  function multipleLocants(graph,path){
+    const doubles=[],triples=[];
+    for(let i=0;i<path.length-1;i++){
+      const o=bondOrderBetween(graph,path[i],path[i+1]);
+      if(o===2)doubles.push(i+1);
+      if(o===3)triples.push(i+1);
+    }
+    return{doubles,triples};
+  }
+
+  function simpleBranchSize(graph,start,parent,parentSet){
+    let size=0;
+    let cur=start,prev=parent;
+    const seen=new Set();
+    while(true){
+      if(seen.has(cur))return null;
+      seen.add(cur);size++;
+      const next=carbonNeighbors(graph,cur)
+        .map(e=>e.to)
+        .filter(x=>x!==prev&&!parentSet.has(x));
+      if(next.length===0)return size;
+      if(next.length!==1)return null;
+      prev=cur;cur=next[0];
+    }
+  }
+
+  function branchDescriptors(graph,path){
+    const parentSet=new Set(path);
+    const out=[];
+    for(let i=0;i<path.length;i++){
+      for(const e of carbonNeighbors(graph,path[i])){
+        if(parentSet.has(e.to))continue;
+        const size=simpleBranchSize(graph,e.to,path[i],parentSet);
+        if(size==null||!alkyl[size])return null;
+        out.push({loc:i+1,size,name:alkyl[size]});
+      }
+    }
+    return out;
+  }
+
+  function compareLocantArrays(a,b){
+    const aa=[...a],bb=[...b];
+    const n=Math.max(aa.length,bb.length);
+    for(let i=0;i<n;i++){
+      const x=aa[i]??999,y=bb[i]??999;
+      if(x!==y)return x-y;
+    }
+    return 0;
+  }
+
+  function orientationScore(graph,path,principalLocants=[]){
+    const unsat=multipleLocants(graph,path);
+    const branches=branchDescriptors(graph,path)||[];
+    return {
+      principal:[...principalLocants].sort((a,b)=>a-b),
+      unsat:[...unsat.doubles,...unsat.triples].sort((a,b)=>a-b),
+      branches:branches.map(b=>b.loc).sort((a,b)=>a-b)
+    };
+  }
+
+  function betterOrientation(a,b){
+    let c=compareLocantArrays(a.principal,b.principal);
+    if(c!==0)return c<0;
+    c=compareLocantArrays(a.unsat,b.unsat);
+    if(c!==0)return c<0;
+    c=compareLocantArrays(a.branches,b.branches);
+    return c<0;
+  }
+
+  function chooseOrientation(graph,path,principalNodeIds=[]){
+    const rev=[...path].reverse();
+
+    function pLocs(p){
+      return principalNodeIds.map(id=>p.indexOf(id)+1).filter(x=>x>0).sort((a,b)=>a-b);
+    }
+
+    const s1=orientationScore(graph,path,pLocs(path));
+    const s2=orientationScore(graph,rev,pLocs(rev));
+    return betterOrientation(s2,s1)?rev:path;
+  }
+
+  function chooseParentPath(graph,requiredIds=[]){
+    const paths=allSimpleCarbonPaths(graph,requiredIds);
+    if(!paths.length)return null;
+
+    paths.sort((a,b)=>{
+      const ma=multipleLocants(graph,a);
+      const mb=multipleLocants(graph,b);
+      const ua=ma.doubles.length+ma.triples.length;
+      const ub=mb.doubles.length+mb.triples.length;
+      if(ub!==ua)return ub-ua;
+      if(b.length!==a.length)return b.length-a.length;
+
+      const ba=branchDescriptors(graph,a);
+      const bb=branchDescriptors(graph,b);
+      const na=ba?ba.length:-1;
+      const nb=bb?bb.length:-1;
+      return nb-na;
+    });
+
+    return paths[0];
+  }
+
+  function formatBranches(branches){
+    if(!branches||!branches.length)return '';
+    const groups=new Map();
+    branches.forEach(b=>{
+      if(!groups.has(b.name))groups.set(b.name,[]);
+      groups.get(b.name).push(b.loc);
+    });
+
+    const parts=[...groups.entries()]
+      .sort((a,b)=>a[0].localeCompare(b[0],'de'))
+      .map(([name,locs])=>{
+        locs.sort((a,b)=>a-b);
+        const prefix=locs.length>1?(multiPrefix[locs.length]||''):'';
+        return `${locs.join(',')}-${prefix}${name}`;
+      });
+    return parts.join('-');
+  }
+
+  function hydrocarbonCore(graph,path){
+    const n=path.length;
+    if(!stem[n])return null;
+    const {doubles,triples}=multipleLocants(graph,path);
+
+    if(!doubles.length&&!triples.length)return stem[n]+'an';
+    if(n===2&&doubles.length===1&&!triples.length)return 'ethen';
+    if(n===2&&triples.length===1&&!doubles.length)return 'ethin';
+
+    let core=stem[n];
+    if(doubles.length){
+      const p=doubles.length>1?(multiPrefix[doubles.length]||''):'';
+      core+=`-${doubles.join(',')}-${p}en`;
+    }
+    if(triples.length){
+      const p=triples.length>1?(multiPrefix[triples.length]||''):'';
+      core+=`-${triples.join(',')}-${p}in`;
+    }
+    return core;
+  }
+
+  function explicitOrImplicitHOn(graph,id){
+    const n=graph.nodes[id];
+    const val={C:4,O:2,H:1}[n.element]||0;
+    const used=graph.adj[id].reduce((s,e)=>s+e.order,0);
+    const explicitH=graph.adj[id].some(e=>graph.nodes[e.to].element==='H'&&e.order===1);
+    return explicitH||used<val;
+  }
+
+  function oxygenGroups(graph){
+    const groups=[];
+    for(const o of graph.nodes.filter(n=>n.element==='O')){
+      const neigh=graph.adj[o.id];
+      const cSingle=neigh.filter(e=>graph.nodes[e.to].element==='C'&&e.order===1);
+      const cDouble=neigh.filter(e=>graph.nodes[e.to].element==='C'&&e.order===2);
+      const hSingle=neigh.filter(e=>graph.nodes[e.to].element==='H'&&e.order===1);
+
+      groups.push({
+        o:o.id,
+        cSingle:cSingle.map(e=>e.to),
+        cDouble:cDouble.map(e=>e.to),
+        h:hSingle.map(e=>e.to),
+        hasImplicitH:explicitOrImplicitHOn(graph,o.id)
+      });
+    }
+    return groups;
+  }
+
+  function iupacName(graph){
+    if(!graph.nodes.length)return{ok:false,name:'–',reason:'leer'};
+    if(!connectedGraph(graph))return{ok:false,name:'Struktur unvollständig',reason:'getrennte Teilstrukturen'};
+    if(hasCycle(graph,['C']))return{ok:false,name:'Ringstruktur noch nicht unterstützt',reason:'cyclisch'};
+
+    const cids=carbonIds(graph);
+    const og=oxygenGroups(graph);
+
+    if(cids.length===0){
+      const O=graph.nodes.filter(n=>n.element==='O').length;
+      const H=graph.nodes.filter(n=>n.element==='H').length;
+      if(O===1&&H<=2)return{ok:true,name:'Wasser'};
+      if(H===1&&O===0)return{ok:true,name:'Wasserstoffatom'};
+      return{ok:false,name:'Keine C-basierte IUPAC-Struktur',reason:'kein Kohlenstoff'};
+    }
+
+    // Detect carbonyl carbons.
+    const carbonyl=[];
+    for(const c of cids){
+      const dO=graph.adj[c].filter(e=>graph.nodes[e.to].element==='O'&&e.order===2);
+      if(dO.length)carbonyl.push({c,ox:dO[0].to});
+    }
+
+    // Carboxylic acid: C(=O)-O(H)
+    const acids=[];
+    for(const co of carbonyl){
+      const singleO=graph.adj[co.c]
+        .filter(e=>graph.nodes[e.to].element==='O'&&e.order===1)
+        .map(e=>e.to)
+        .find(oid=>explicitOrImplicitHOn(graph,oid));
+      if(singleO!=null)acids.push({c:co.c,o:singleO});
+    }
+
+    if(acids.length===1){
+      let path=chooseParentPath(graph,[acids[0].c]);
+      if(!path)return{ok:false,name:'Struktur nicht benennbar',reason:'keine Hauptkette'};
+      // Carboxyl carbon is always carbon 1.
+      if(path[0]!==acids[0].c)path=[...path].reverse();
+      const branches=branchDescriptors(graph,path);
+      if(branches===null)return{ok:false,name:'Komplexe Seitenkette noch nicht unterstützt',reason:'verzweigte Seitenkette'};
+      const prefix=formatBranches(branches);
+      const n=path.length;
+      if(!stem[n])return{ok:false,name:'Kette zu lang',reason:'>12 C'};
+      const core=stem[n]+'ansäure';
+      return{ok:true,name:(prefix?prefix+'-':'')+core};
+    }
+
+    // Aldehyde: terminal C=O with an available H and not acid.
+    const aldehydes=carbonyl.filter(co=>{
+      const cNbr=carbonNeighbors(graph,co.c).length;
+      return cNbr<=1&&explicitOrImplicitHOn(graph,co.c);
+    });
+
+    if(aldehydes.length===1){
+      let path=chooseParentPath(graph,[aldehydes[0].c]);
+      if(path[0]!==aldehydes[0].c)path=[...path].reverse();
+      const branches=branchDescriptors(graph,path);
+      if(branches===null)return{ok:false,name:'Komplexe Seitenkette noch nicht unterstützt',reason:'verzweigte Seitenkette'};
+      const prefix=formatBranches(branches);
+      const n=path.length;
+      if(!stem[n])return{ok:false,name:'Kette zu lang',reason:'>12 C'};
+      return{ok:true,name:(prefix?prefix+'-':'')+stem[n]+'anal'};
+    }
+
+    // Ketone: one internal carbonyl.
+    const ketones=carbonyl.filter(co=>carbonNeighbors(graph,co.c).length>=2);
+    if(ketones.length===1){
+      let path=chooseParentPath(graph,[ketones[0].c]);
+      if(!path)return{ok:false,name:'Struktur nicht benennbar',reason:'keine Hauptkette'};
+      path=chooseOrientation(graph,path,[ketones[0].c]);
+      const loc=path.indexOf(ketones[0].c)+1;
+      const branches=branchDescriptors(graph,path);
+      if(branches===null)return{ok:false,name:'Komplexe Seitenkette noch nicht unterstützt',reason:'verzweigte Seitenkette'};
+      const prefix=formatBranches(branches);
+      const n=path.length;
+      if(!stem[n])return{ok:false,name:'Kette zu lang',reason:'>12 C'};
+      return{ok:true,name:(prefix?prefix+'-':'')+`${stem[n]}an-${loc}-on`};
+    }
+
+    // Alcohol: oxygen with one C single bond and H (explicit or inferred).
+    const alcoholOs=og.filter(g=>g.cSingle.length===1&&g.hasImplicitH&&g.cDouble.length===0);
+    if(alcoholOs.length===1){
+      const carbon=alcoholOs[0].cSingle[0];
+      let path=chooseParentPath(graph,[carbon]);
+      if(!path)return{ok:false,name:'Struktur nicht benennbar',reason:'keine Hauptkette'};
+      path=chooseOrientation(graph,path,[carbon]);
+      const loc=path.indexOf(carbon)+1;
+      const branches=branchDescriptors(graph,path);
+      if(branches===null)return{ok:false,name:'Komplexe Seitenkette noch nicht unterstützt',reason:'verzweigte Seitenkette'};
+      const prefix=formatBranches(branches);
+      const n=path.length;
+      if(!stem[n])return{ok:false,name:'Kette zu lang',reason:'>12 C'};
+
+      const uns=multipleLocants(graph,path);
+      let core;
+      if(!uns.doubles.length&&!uns.triples.length){
+        if(n===1)core='methanol';
+        else if(n===2)core='ethanol';
+        else core=`${stem[n]}an-${loc}-ol`;
+      }else{
+        core=stem[n];
+        if(uns.doubles.length){
+          const p=uns.doubles.length>1?(multiPrefix[uns.doubles.length]||''):'';
+          core+=`-${uns.doubles.join(',')}-${p}en`;
+        }
+        if(uns.triples.length){
+          const p=uns.triples.length>1?(multiPrefix[uns.triples.length]||''):'';
+          core+=`-${uns.triples.join(',')}-${p}in`;
+        }
+        core+=`-${loc}-ol`;
+      }
+      return{ok:true,name:(prefix?prefix+'-':'')+core};
+    }
+
+    // Ether: exactly one O linked to two carbon groups.
+    const ethers=og.filter(g=>g.cSingle.length===2&&g.cDouble.length===0);
+    if(ethers.length===1&&og.length===1){
+      const o=ethers[0];
+      const [c1,c2]=o.cSingle;
+
+      function component(start,blocked){
+        const seen=new Set([start]),stack=[start];
+        while(stack.length){
+          const x=stack.pop();
+          for(const e of carbonNeighbors(graph,x)){
+            if(e.to===blocked||seen.has(e.to))continue;
+            seen.add(e.to);stack.push(e.to);
+          }
+        }
+        return [...seen];
+      }
+
+      const comp1=component(c1,c2),comp2=component(c2,c1);
+      let parentStart=c1,alkoxyStart=c2,parentComp=comp1,alkoxyComp=comp2;
+      if(comp2.length>comp1.length){
+        parentStart=c2;alkoxyStart=c1;parentComp=comp2;alkoxyComp=comp1;
+      }
+
+      // Keep ether naming conservative: both carbon fragments must be unbranched.
+      const parentPaths=allSimpleCarbonPaths(graph).filter(p=>parentComp.every(x=>p.includes(x))&&p.every(x=>parentComp.includes(x)));
+      if(parentPaths.length){
+        let path=parentPaths.sort((a,b)=>b.length-a.length)[0];
+        const locA=path.indexOf(parentStart)+1;
+        const rev=[...path].reverse();
+        const locB=rev.indexOf(parentStart)+1;
+        if(locB<locA)path=rev;
+
+        const smallSize=alkoxyComp.length;
+        if(alkoxy[smallSize]&&stem[path.length]){
+          const loc=path.indexOf(parentStart)+1;
+          const locText=(path.length<=2&&loc===1)?'':loc+'-';
+          return{ok:true,name:`${locText}${alkoxy[smallSize]}${stem[path.length]}an`};
+        }
+      }
+    }
+
+    // Pure hydrocarbon (H atoms are ignored for parent skeleton).
+    if(og.length===0){
+      let path=chooseParentPath(graph,[]);
+      if(!path)return{ok:false,name:'Struktur nicht benennbar',reason:'keine Hauptkette'};
+      path=chooseOrientation(graph,path,[]);
+      const branches=branchDescriptors(graph,path);
+      if(branches===null)return{ok:false,name:'Komplexe Seitenkette noch nicht unterstützt',reason:'verzweigte Seitenkette'};
+      const core=hydrocarbonCore(graph,path);
+      if(!core)return{ok:false,name:'Kette zu lang',reason:'>12 C'};
+      const prefix=formatBranches(branches);
+      return{ok:true,name:(prefix?prefix+'-':'')+core};
+    }
+
+    return{ok:false,name:'IUPAC-Erkennung für diese Struktur noch nicht unterstützt',reason:'Funktionsgruppe/Mehrfachfunktion'};
+  }
+
+  function formulaHTML(formula){
+    return formula.replace(/(\d+)/g,'<sub>$1</sub>');
+  }
+
+  function updateSummary(){
+    const graph=buildMoleculeGraph();
+    structureText.textContent=`${graph.nodes.length} Atome · ${graph.edges.length} Bindungen`;
+
+    if(!graph.nodes.length){
+      formulaText.textContent='–';
+      return;
+    }
+
+    const f=inferredFormula(graph);
+    const n=iupacName(graph);
+
+    structureText.textContent=n.name;
+    const parts=[formulaHTML(f.formula||'–')];
+
+    if(f.invalid){
+      parts.push('<span class="bad">Valenz prüfen</span>');
+    }else if(!n.ok&&n.reason){
+      parts.push(n.reason);
+    }
+    formulaText.innerHTML=parts.join(' · ');
+  }
+
+  function reset(){
+    for(const f of fields.values())clearTimeout(f.timer);
+    fields.clear();
+    atoms.clear();
+    bonds.clear();
+    connectors.length=0;
+    board.innerHTML='';
+    fieldSeq=1;
+    applyZoom(1);
+
+    createAtom(0,0,null);
+    updateSummary();
+    setStatus('Erstes Atom schreiben','Schreibe C, O oder H in das mittlere Feld.');
+    centerBoard();
+  }
+
+  // Zwei Finger: gleichzeitig verschieben und zoomen.
+  // Ein Finger bzw. Stift bleibt ausschließlich zum Zeichnen reserviert.
+  shell.addEventListener('pointerdown',ev=>{
+    if(ev.pointerType!=='touch')return;
+
+    touchPointers.set(ev.pointerId,{x:ev.clientX,y:ev.clientY});
+
+    if(touchPointers.size===2){
+      twoFingerPan=true;
+      cancelActiveDrawing();
+
+      const c=panCenter();
+      const rect=shell.getBoundingClientRect();
+      pinchStartDistance=Math.max(1,panDistance());
+      pinchStartZoom=zoom;
+      pinchWorldPoint={
+        x:(shell.scrollLeft+(c.x-rect.left))/zoom,
+        y:(shell.scrollTop +(c.y-rect.top ))/zoom
+      };
+      lastPanCenter=c;
+
+      ev.preventDefault();
+      ev.stopPropagation();
+    }
+  },true);
+
+  shell.addEventListener('pointermove',ev=>{
+    if(ev.pointerType!=='touch'||!touchPointers.has(ev.pointerId))return;
+
+    touchPointers.set(ev.pointerId,{x:ev.clientX,y:ev.clientY});
+
+    if(twoFingerPan&&touchPointers.size>=2){
+      const c=panCenter();
+      const rect=shell.getBoundingClientRect();
+      const currentDistance=Math.max(1,panDistance());
+      const newZoom=clamp(
+        pinchStartZoom*(currentDistance/pinchStartDistance),
+        MIN_ZOOM,
+        MAX_ZOOM
+      );
+
+      applyZoom(newZoom);
+
+      // Der Punkt, der beim Beginn der Geste zwischen den Fingern lag,
+      // bleibt während Zoom + Pan unter der Fingermitte.
+      shell.scrollLeft=pinchWorldPoint.x*zoom-(c.x-rect.left);
+      shell.scrollTop =pinchWorldPoint.y*zoom-(c.y-rect.top);
+      clampScroll();
+
+      lastPanCenter=c;
+      ev.preventDefault();
+      ev.stopPropagation();
+    }
+  },true);
+
+  function endPanPointer(ev){
+    if(ev.pointerType!=='touch')return;
+    touchPointers.delete(ev.pointerId);
+
+    if(twoFingerPan&&touchPointers.size<2){
+      twoFingerPan=false;
+      lastPanCenter=null;
+      pinchWorldPoint=null;
+      pinchStartDistance=0;
+      pinchStartZoom=zoom;
+    }
+  }
+
+  shell.addEventListener('pointerup',endPanPointer,true);
+  shell.addEventListener('pointercancel',endPanPointer,true);
+  shell.addEventListener('lostpointercapture',endPanPointer,true);
+
+  document.getElementById('centerBtn').addEventListener('click',centerBoard);
+  document.getElementById('resetBtn').addEventListener('click',reset);
+
+  reset();
+})();
+</script>
+</body>
+</html>
