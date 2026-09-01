@@ -1,0 +1,583 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <title>Reaktionsgleichung – iPad-Kritzeln (PoC)</title>
+  <style>
+    :root{
+      --ink:#152238;--muted:#68758a;--line:#d9e1ec;--blue:#2563eb;
+      --atom:#eaf2ff;--atom-line:#9bbbf5;--number:#f3efff;--number-line:#b9a6ed;
+      --operator:#e9f8f2;--operator-line:#86cdb3;--good:#0d8a5f;--bad:#c63f4b;
+    }
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    html,body{width:100%;height:100%;margin:0;overflow:hidden;overscroll-behavior:none}
+    body{font-family:Arial,Helvetica,sans-serif;color:var(--ink);background:#eef3f8;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+    button{font:inherit}
+    .app{height:100%;height:100dvh;display:grid;grid-template-rows:auto 1fr auto;gap:10px;padding:max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(10px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left))}
+    header,.footer,.panel{background:#fff;border:1px solid #dde5ef;border-radius:18px;box-shadow:0 8px 30px rgba(48,65,90,.07)}
+    header{display:flex;align-items:center;gap:14px;padding:12px 16px}
+    .drop{width:42px;height:42px;border-radius:50% 50% 52% 48% / 62% 62% 38% 38%;background:linear-gradient(145deg,#4ba7ff,#1765d8);transform:rotate(45deg);display:grid;place-items:center;flex:none}
+    .drop span{transform:rotate(-45deg);color:#fff;font-size:20px;font-weight:900}
+    h1{font-size:clamp(18px,2.5vw,27px);line-height:1.08;margin:0}
+    header p{margin:3px 0 0;color:var(--muted);font-size:13px}
+    .task{margin-left:auto;text-align:right;white-space:nowrap}
+    .task b{display:block;font-size:18px}.task span{color:var(--muted);font-size:12px}
+    main{min-height:0;display:grid;grid-template-rows:minmax(250px,1fr) auto;gap:10px}
+    .panel{position:relative;overflow:hidden;min-height:0;background:linear-gradient(#fff,#fbfcff)}
+    .drawing-panel{background-color:#fbfcfe;background-image:radial-gradient(circle,#aeb9c9 1px,transparent 1.2px);background-size:28px 28px}
+    .viewport{position:absolute;inset:0;overflow:hidden;touch-action:none;cursor:grab}
+    .viewport.moving{cursor:grabbing}
+    .board{position:absolute;left:0;top:0;width:2400px;height:1200px;transform-origin:0 0;will-change:transform}
+    .guide{position:absolute;height:1px;top:553px;left:430px;width:1700px;background:linear-gradient(90deg,transparent,rgba(135,150,170,.16) 10%,rgba(135,150,170,.16) 90%,transparent);pointer-events:none}
+    .zoom-badge{position:absolute;z-index:20;right:11px;top:10px;padding:5px 8px;border-radius:9px;background:rgba(255,255,255,.78);color:#78869a;font-size:11px;font-weight:800;pointer-events:none;backdrop-filter:blur(7px)}
+    .eraser-cursor{position:fixed;z-index:100;width:24px;height:24px;border:1.5px solid rgba(198,63,75,.62);border-radius:50%;background:rgba(255,235,237,.18);transform:translate(-50%,-50%);pointer-events:none;display:none}
+    .field{position:absolute;z-index:5;border:0;border-radius:14px;overflow:visible;transition:left .22s ease,top .22s ease,opacity .18s ease,transform .18s ease,box-shadow .18s ease}
+    .field.new{animation:field-in .22s ease both}@keyframes field-in{from{opacity:0;transform:scale(.7)}to{opacity:1;transform:scale(1)}}
+    .field.atom{width:92px;height:92px;background:rgba(69,128,224,.055);box-shadow:inset 0 0 0 1px rgba(69,128,224,.09)}
+    .field.index,.field.coefficient{z-index:8;width:50px;height:60px;background:rgba(126,87,194,.045);box-shadow:inset 0 0 0 1px rgba(126,87,194,.075);border-radius:12px}
+    .field.operator{z-index:6;width:160px;height:82px;background:rgba(29,155,108,.038);box-shadow:inset 0 0 0 1px rgba(29,155,108,.065)}
+    .field.drawing{box-shadow:inset 0 0 0 1px rgba(37,99,235,.16),0 0 0 5px rgba(37,99,235,.045)}
+    .field.recognized{background:rgba(255,255,255,.14);box-shadow:none}
+    .field.dormant{background:transparent!important;box-shadow:none!important}
+    .field.dormant::before{content:"";position:absolute;z-index:1;left:50%;top:50%;width:5px;height:5px;border-radius:50%;background:rgba(103,119,140,.18);transform:translate(-50%,-50%);pointer-events:none}
+    .field.dormant.drawing::before{display:none}
+    .field.unresolved{animation:shake .18s linear 1;box-shadow:inset 0 0 0 1px rgba(230,156,87,.18)}@keyframes shake{25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
+    canvas{position:relative;z-index:2;display:block;width:100%;height:100%;border-radius:11px;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-user-drag:none;-webkit-touch-callout:none}
+    .scribble-input{display:none}
+    .native-scribble .field canvas{display:none}
+    .native-scribble .scribble-input{position:absolute;z-index:4;inset:0;display:block;width:100%;height:100%;padding:4px;border:0;border-radius:inherit;outline:0;background:transparent;color:var(--ink);font:650 40px/1 Arial,Helvetica,sans-serif;text-align:center;caret-color:var(--blue);touch-action:auto;-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
+    .native-scribble .field.index .scribble-input,.native-scribble .field.coefficient .scribble-input{font-size:27px;padding:3px}
+    .native-scribble .field.operator .scribble-input{font-size:35px;letter-spacing:.04em}
+    .native-scribble .scribble-input:disabled{opacity:1;color:var(--ink);-webkit-text-fill-color:var(--ink)}
+    .native-scribble .field:focus-within{background:rgba(255,255,255,.72)!important;box-shadow:inset 0 0 0 1.5px rgba(37,99,235,.22),0 0 0 6px rgba(37,99,235,.055)!important}
+    .native-scribble .field.dormant .scribble-input:placeholder-shown:not(:focus){opacity:.15}
+    .native-scribble .field.dormant .scribble-input:not(:placeholder-shown){opacity:1}
+    .native-scribble.erasing .scribble-input{pointer-events:none}
+    .native-scribble.erasing .viewport{cursor:crosshair}
+    .type,.value{display:none!important}.field.synthetic .value{display:grid!important;background:transparent;color:#173d30;font-weight:900;font-size:34px}.field.synthetic.index .value,.field.synthetic.coefficient .value{font-size:27px}.field.synthetic.operator .value{font-size:38px}
+    .clear{position:absolute;right:-9px;top:-10px;width:24px;height:24px;padding:0;border:0;border-radius:50%;background:#28384f;color:#fff;font-weight:900;display:none;place-items:center;z-index:8;box-shadow:0 2px 6px #8b98aa}
+    .recognized .clear{display:none}
+    .add-hint{position:absolute;color:#9a7bcb;font-size:19px;font-weight:900;pointer-events:none;opacity:.72}
+    .results{display:grid;grid-template-columns:minmax(210px,1.15fr) minmax(260px,1fr);gap:10px}
+    .equation-card,.balance-card{padding:10px 14px;min-height:78px}
+    .eyebrow{color:var(--muted);font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+    #equation{margin-top:4px;font-size:clamp(23px,3.4vw,37px);font-weight:850;letter-spacing:.025em;min-height:38px}
+    #equation sub{font-size:.58em;vertical-align:-.28em}.placeholder{color:#a8b2c1;font-weight:600}
+    .balance-card{display:grid;grid-template-columns:1fr auto;align-items:center;gap:12px}
+    #message{font-size:15px;font-weight:850}.detail{font-size:12px;color:var(--muted);margin-top:3px}
+    .counts{display:flex;gap:7px}.count{min-width:54px;padding:6px 8px;border-radius:10px;background:#f3f6fa;text-align:center;font-size:11px;color:var(--muted)}.count b{display:block;color:var(--ink);font-size:15px;margin-top:2px}
+    .success #message{color:var(--good)}.error #message{color:var(--bad)}
+    .footer{display:flex;align-items:center;gap:12px;padding:9px 12px;color:var(--muted);font-size:12px}
+    .footer .tip{flex:1}.footer b{color:var(--ink)}
+    .footer button{border:1px solid #cfd9e6;background:#fff;color:#33445c;border-radius:10px;padding:8px 12px;font-weight:750}
+    .footer button.primary{background:#1f65dd;color:#fff;border-color:#1f65dd}
+    @media(max-width:720px){
+      .app{gap:7px;padding:7px}.task{display:none}header{padding:9px 11px;border-radius:14px}.drop{width:34px;height:34px}header p{display:none}
+      main{gap:7px}.panel{border-radius:14px}.results{grid-template-columns:1fr}.balance-card{min-height:66px}.equation-card{min-height:65px}
+      .footer{border-radius:14px}.footer .tip{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    }
+  </style>
+</head>
+<body class="native-scribble">
+<div class="app">
+  <header>
+    <div class="drop"><span>H₂O</span></div>
+    <div><h1>Analyse von Wasser · iPad</h1><p>Die Eingabefelder verwenden die iPadOS-Funktion „Kritzeln“.</p></div>
+    <div class="task"><b>H₂O → H₂ + O₂</b><span>System-Schrifterkennung</span></div>
+  </header>
+
+  <main>
+    <section class="panel drawing-panel" aria-label="Zeichenfläche">
+      <div class="zoom-badge" id="zoomBadge">100 %</div>
+      <div class="viewport" id="viewport"><div class="board" id="board"><div class="guide"></div></div></div>
+      <div class="eraser-cursor" id="eraserCursor" aria-hidden="true"></div>
+    </section>
+    <section class="results">
+      <div class="panel equation-card"><div class="eyebrow">Erkannte Gleichung</div><div id="equation"><span class="placeholder">Beginne mit H oder O …</span></div></div>
+      <div class="panel balance-card" id="balanceCard">
+        <div><div id="message">Noch keine Gleichung</div><div class="detail" id="detail">Leere Zahlenfelder bedeuten automatisch 1.</div></div>
+        <div class="counts"><div class="count">H links · rechts<b id="hCount">0 · 0</b></div><div class="count">O links · rechts<b id="oCount">0 · 0</b></div></div>
+      </div>
+    </section>
+  </main>
+
+  <div class="footer"><div class="tip"><b>Apple Pencil:</b> schreiben · <b>außerhalb ansetzen:</b> über Felder ziehen und löschen · <b>zwei Finger:</b> bewegen/zoomen</div><button id="center" type="button">Zentrieren</button><button id="demo" type="button">Beispiel</button><button class="primary" id="reset" type="button">Neu</button></div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const board=document.getElementById('board');
+  const viewport=document.getElementById('viewport');
+  const equationEl=document.getElementById('equation');
+  const messageEl=document.getElementById('message');
+  const detailEl=document.getElementById('detail');
+  const balanceCard=document.getElementById('balanceCard');
+  const hCount=document.getElementById('hCount');
+  const oCount=document.getElementById('oCount');
+  const zoomBadge=document.getElementById('zoomBadge');
+  const eraserCursor=document.getElementById('eraserCursor');
+  const RECOGNITION_IDLE_MS=390;
+  const NATIVE_SCRIBBLE=true;
+  const fields=new Map();
+  const species=[];
+  const operators=[];
+  let nextId=1;
+  const MIN_ZOOM=.38,MAX_ZOOM=1.65;
+  let zoom=1,panX=0,panY=0;
+  const touchPoints=new Map(),suppressedTouches=new Set();
+  const viewGesture={active:false,startDistance:1,startZoom:1,world:null};
+  let eraseGesture=null,eraseUpdateFrame=0;
+
+  const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+  const pointCenter=(a,b)=>({x:(a.x+b.x)/2,y:(a.y+b.y)/2});
+
+  function applyView(){board.style.transform=`translate(${panX}px,${panY}px) scale(${zoom})`;zoomBadge.textContent=Math.round(zoom*100)+' %'}
+  function centerView(){
+    const fit=clamp(Math.min(viewport.clientWidth/900,viewport.clientHeight/560),MIN_ZOOM,1.05);zoom=fit;
+    panX=viewport.clientWidth/2-650*zoom;panY=viewport.clientHeight/2-550*zoom;applyView();
+  }
+  function cancelTouchDrawing(){
+    for(const state of fields.values()){
+      if(!state.active||!touchPoints.has(state.active.pointerId))continue;
+      if(state.strokes[state.strokes.length-1]===state.active)state.strokes.pop();state.active=null;state.el.classList.remove('drawing');redrawInk(state);
+    }
+  }
+
+  function feature(stroke){
+    const pts=stroke.points;let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity,L=0;
+    for(let i=0;i<pts.length;i++){const p=pts[i];x0=Math.min(x0,p.x);y0=Math.min(y0,p.y);x1=Math.max(x1,p.x);y1=Math.max(y1,p.y);if(i)L+=dist(pts[i-1],p)}
+    const w=x1-x0,h=y1-y0,diag=Math.hypot(w,h),start=pts[0],end=pts[pts.length-1],chord=dist(start,end);
+    const mx=pts.reduce((s,p)=>s+p.x,0)/pts.length,my=pts.reduce((s,p)=>s+p.y,0)/pts.length;
+    let sxx=0,syy=0,sxy=0;for(const p of pts){const dx=p.x-mx,dy=p.y-my;sxx+=dx*dx;syy+=dy*dy;sxy+=dx*dy}
+    const angle=.5*Math.atan2(2*sxy,sxx-syy),ux=Math.cos(angle),uy=Math.sin(angle),vx=-uy,vy=ux;
+    let lo=Infinity,hi=-Infinity,sumD2=0;for(const p of pts){const dx=p.x-mx,dy=p.y-my,t=dx*ux+dy*uy,d=dx*vx+dy*vy;lo=Math.min(lo,t);hi=Math.max(hi,t);sumD2+=d*d}
+    const span=hi-lo;return{pts,x0,y0,x1,y1,w,h,diag,L,chord,start,end,angle:(angle+Math.PI)%Math.PI,span,rms:Math.sqrt(sumD2/Math.max(1,pts.length)),linearity:span/Math.max(1,L)};
+  }
+  function angleDiff(a,b){let d=Math.abs(a-b)%Math.PI;return Math.min(d,Math.PI-d)}
+  function lineKind(f){if(f.diag<14||f.linearity<.72)return'';if(angleDiff(f.angle,0)<.34)return'h';if(angleDiff(f.angle,Math.PI/2)<.34)return'v';return'd'}
+
+  function isOLoop(stroke){
+    if(!stroke||stroke.points.length<6)return false;const f=feature(stroke);if(f.diag<24||f.w<15||f.h<18)return false;
+    const aspect=f.w/Math.max(1,f.h),curl=f.L/Math.max(1,f.diag),close=f.chord/Math.max(1,f.diag);if(aspect<.24||aspect>3.4||curl<1.28||curl>5.2)return false;
+    const cx=(f.x0+f.x1)/2,cy=(f.y0+f.y1)/2,minR=f.diag*.07,q=new Set();let last=null,turn=0;
+    for(const p of f.pts){const dx=p.x-cx,dy=p.y-cy;if(Math.hypot(dx,dy)<minR)continue;const a=Math.atan2(dy,dx);q.add((dx>=0?1:0)+(dy>=0?2:0));if(last!==null){let d=a-last;while(d>Math.PI)d-=2*Math.PI;while(d<-Math.PI)d+=2*Math.PI;turn+=d}last=a}
+    return close<.70&&Math.abs(turn)>4.15&&q.size===4;
+  }
+  function isSingleH(stroke){
+    if(!stroke||stroke.points.length<8)return false;const f=feature(stroke);if(f.w<22||f.h<32||f.diag<42)return false;
+    let lv=0,rv=0,c0=Infinity,c1=-Infinity;for(let i=1;i<f.pts.length;i++){const a=f.pts[i-1],b=f.pts[i],dx=b.x-a.x,dy=b.y-a.y,adx=Math.abs(dx),ady=Math.abs(dy);if(adx+ady<1.5)continue;const mx=((a.x+b.x)/2-f.x0)/Math.max(1,f.w),my=((a.y+b.y)/2-f.y0)/Math.max(1,f.h);if(ady>adx*1.15){if(mx<.42)lv+=ady;if(mx>.58)rv+=ady}if(adx>ady*1.05&&my>.2&&my<.8){c0=Math.min(c0,a.x,b.x);c1=Math.max(c1,a.x,b.x)}}
+    const cross=Number.isFinite(c0)?c1-c0:0;return lv>f.h*.42&&rv>f.h*.38&&cross>f.w*.44&&f.L/Math.max(1,f.diag)>1.65;
+  }
+  function recognizeAtom(strokes){
+    const valid=strokes.filter(s=>s.points.length>1);if(!valid.length)return null;
+    if(valid.some(isOLoop))return'O';
+    if(valid.length===1&&isSingleH(valid[0]))return'H';
+    const fs=valid.map(feature),vertical=fs.filter(f=>lineKind(f)==='v'&&f.span>26),horizontal=fs.filter(f=>lineKind(f)==='h'&&f.span>18);
+    if(vertical.length>=2&&horizontal.length>=1){const vs=vertical.sort((a,b)=>b.span-a.span).slice(0,2),bar=horizontal.sort((a,b)=>b.span-a.span)[0];const lx=Math.min((vs[0].x0+vs[0].x1)/2,(vs[1].x0+vs[1].x1)/2),rx=Math.max((vs[0].x0+vs[0].x1)/2,(vs[1].x0+vs[1].x1)/2),bx0=Math.min(bar.start.x,bar.end.x),bx1=Math.max(bar.start.x,bar.end.x);if(rx-lx>12&&Math.max(0,bx0-lx)+Math.max(0,rx-bx1)<(rx-lx)*.8)return'H'}
+    return null;
+  }
+
+  const digitTemplates={
+    '0a':[[.5,0],[.22,.06],[.07,.28],[.04,.68],[.2,.94],[.5,1],[.8,.94],[.96,.68],[.93,.28],[.78,.06],[.5,0]],
+    '1a':[[.5,0],[.5,1]],
+    '1b':[[.2,.2],[.48,0],[.48,1],[.18,1],[.78,1]],
+    '2a':[[.08,.22],[.23,.05],[.53,0],[.82,.08],[.96,.25],[.86,.42],[.61,.58],[.34,.72],[.12,.88],[.04,1],[.96,1]],
+    '2b':[[.05,.18],[.28,0],[.72,0],[.96,.2],[.9,.34],[.05,.92],[.05,1],[.96,1]],
+    '2c':[[.12,.28],[.22,.08],[.52,0],[.82,.1],[.9,.3],[.72,.48],[.18,.84],[.08,1],[.88,1]],
+    '3a':[[.08,.08],[.42,0],[.78,.06],[.94,.22],[.78,.43],[.48,.5],[.78,.54],[.96,.73],[.83,.93],[.47,1],[.08,.92]],
+    '3b':[[.08,.04],[.65,0],[.92,.18],[.72,.43],[.42,.5],[.72,.55],[.94,.78],[.7,.98],[.08,.95]],
+    '4a':[[.76,0],[.08,.62],[.95,.62],[.72,.62],[.72,1]],
+    '4b':[[.62,0],[.08,.58],[.08,.66],[.96,.66],[.76,.66],[.76,1]],
+    '5a':[[.91,0],[.16,0],[.1,.46],[.43,.41],[.76,.47],[.94,.65],[.88,.87],[.64,1],[.28,.98],[.06,.86]],
+    '5b':[[.94,0],[.12,0],[.1,.46],[.62,.45],[.9,.58],[.94,.82],[.7,1],[.26,.98],[.04,.86]],
+    '6a':[[.83,.06],[.58,0],[.28,.17],[.1,.45],[.05,.73],[.18,.94],[.49,1],[.79,.9],[.94,.69],[.82,.52],[.53,.43],[.24,.51],[.08,.7]],
+    '6b':[[.78,0],[.48,.05],[.2,.32],[.08,.68],[.2,.93],[.5,1],[.82,.9],[.94,.68],[.8,.5],[.5,.43],[.2,.53],[.08,.72]],
+    '7a':[[.04,0],[.97,0],[.76,.24],[.61,.48],[.46,.72],[.36,1]],
+    '7b':[[.03,.05],[.97,.05],[.72,.34],[.56,.64],[.46,1]],
+    '8a':[[.5,0],[.2,.08],[.08,.28],[.2,.46],[.5,.54],[.8,.46],[.92,.27],[.8,.08],[.5,0],[.25,.18],[.18,.4],[.5,.55],[.8,.68],[.88,.88],[.68,1],[.36,.98],[.14,.82],[.2,.66],[.5,.55]],
+    '9a':[[.87,.52],[.7,.66],[.39,.66],[.13,.52],[.05,.28],[.18,.08],[.48,0],[.77,.1],[.92,.31],[.86,.61],[.69,.84],[.45,1]],
+    '9b':[[.9,.46],[.72,.62],[.4,.64],[.14,.48],[.08,.24],[.25,.05],[.55,0],[.84,.14],[.92,.42],[.82,.7],[.55,1]]
+  };
+  function samplePolyline(points,n=48){const seg=[];let total=0;for(let i=1;i<points.length;i++){const l=dist({x:points[i-1][0],y:points[i-1][1]},{x:points[i][0],y:points[i][1]});seg.push(l);total+=l}const out=[];for(let k=0;k<n;k++){let t=total*k/(n-1),i=0;while(i<seg.length-1&&t>seg[i]){t-=seg[i];i++}const q=seg[i]?t/seg[i]:0,a=points[i],b=points[i+1]||a;out.push({x:a[0]+(b[0]-a[0])*q,y:a[1]+(b[1]-a[1])*q})}return out}
+  function normalizePoints(pts){if(!pts.length)return[];let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;for(const p of pts){x0=Math.min(x0,p.x);y0=Math.min(y0,p.y);x1=Math.max(x1,p.x);y1=Math.max(y1,p.y)}const w=Math.max(1e-4,x1-x0),h=Math.max(1e-4,y1-y0),scale=Math.max(w,h),cx=(x0+x1)/2,cy=(y0+y1)/2;return pts.map(p=>({x:(p.x-cx)/scale+.5,y:(p.y-cy)/scale+.5}))}
+  const sampledDigits=Object.fromEntries(Object.entries(digitTemplates).map(([k,v])=>[k,normalizePoints(samplePolyline(v))]));
+  function normalizedCloud(strokes){const pts=strokes.flatMap(s=>s.points);if(!pts.length)return[];const step=Math.max(1,Math.floor(pts.length/70)),thin=pts.filter((_,i)=>i===0||i===pts.length-1||i%step===0);return normalizePoints(thin)}
+  function cloudScore(a,b){if(!a.length||!b.length)return 9;const one=(x,y)=>x.reduce((sum,p)=>sum+Math.min(...y.map(q=>dist(p,q))),0)/x.length;return(one(a,b)+one(b,a))/2}
+  function orderedStroke(stroke){return normalizePoints(samplePolyline(stroke.points.map(p=>[p.x,p.y]),48))}
+  function orderedScore(a,b){if(!a.length||!b.length)return 9;const direct=a.reduce((sum,p,i)=>sum+dist(p,b[i]),0)/a.length,reverse=a.reduce((sum,p,i)=>sum+dist(p,b[b.length-1-i]),0)/a.length;return Math.min(direct,reverse)}
+
+  // Referenzformen aus den realen Stiftbeispielen. Der bisherige reine
+  // Punktwolkenvergleich ignorierte die Topologie: Eine offene 4 oder 5 lag
+  // dadurch haeufig naeher an einer 8. Die kleinen Masken erhalten Schleifen,
+  // Querstriche und den breiten Anstrich einer handschriftlichen 1.
+  const handwritingMasks={
+    '1':{aspect:.71,rows:[
+      '..................','...........#......','..........###.....','.........#####....','........######....','.......###...#....',
+      '......###....##...','.....###.....##...','.....###.....##...','.....##......##...','...##........###..','..###........###..',
+      '..##..........##.','.###..........##.','..............##..','..............##..','..............##..','..............##..',
+      '..............##..','...............##.','...............##.','...............##.','................#.','..................']},
+    '4':{aspect:.71,rows:[
+      '..................','.#................','.#................','.#................','.#................','.#........#.......',
+      '..........#.......','..#.......#.......','..#.......#.......','..#.......#.......','..#.......#.......','..#.......#.....#.',
+      '..###.....#..###..','...####...#####...','.......####.......','.........#........','.........#........','.........#........',
+      '.........#........','.........#........','.........#........','.........#........','........##........','..................']},
+    '5':{aspect:.89,rows:[
+      '..................','..................','..................','....#.............','....##########....','....#........###..',
+      '....#.............','....#.............','....#.............','.....##...........','.....####.........','........##........',
+      '.........##.......','...........##.....','............#.....','............#.....','.#.........##.....','..#........##.....',
+      '..##......#.......','...###..###.......','.......#..........','..................','..................','..................']},
+    '6':{aspect:.54,rows:[
+      '..................','.........##.......','........##........','........##........','.......##.........','......###.........',
+      '......##..........','.....##...........','.....#............','....##............','....##............','....##............',
+      '...##.######......','...##.########....','...####.....###...','...##........##...','...##........##...','...#........##....',
+      '...#........##....','...#.......##.....','...#.....###......','...##...###.......','....######........','..................']},
+    '7':{aspect:.85,rows:[
+      '..................','..................','.###########......','..........###.....','..........##......','..........#.......',
+      '.........#........','.........#........','........##........','....#...#.........','....############..','..................',
+      '.......#..........','.......#..........','......##..........','......##..........','......##..........','......##..........',
+      '......##..........','......##..........','.....##...........','..................','..................','..................']},
+    '8':{aspect:.62,rows:[
+      '..................','...........#......','.......#######....','....###.......#...','....##........#...','...##.........#...',
+      '..##..........#...','..##..............','..##.........#....','....#......###....','....###....##.....','.....##....#......',
+      '.......####.......','.......####.......','.......####.......','......#....##.....','......#.....##....','......#......##...',
+      '......#.......##..','......#........#..','.......#......##..','........######....','.........###......','..................']},
+    '9':{aspect:.64,rows:[
+      '..................','....#####.........','....#..###........','...#....######....','...#......#####...','..##.......####...',
+      '..##.......####...','..##.......#####..','..##.......###....','...#......###.....','....######..##....','............##....',
+      '............##....','.............#....','.............#....','..................','..............#...','..............#...',
+      '....#.........#...','....##........#...','....###.......#...','.......#######....','.........###......','..................']}
+  };
+  const handwritingSamples=Object.entries(handwritingMasks).map(([digit,sample])=>({digit,aspect:sample.aspect,points:sample.rows.flatMap((row,y)=>[...row].flatMap((c,x)=>c==='#'?[{x,y}]:[]))}));
+  function rasterNumber(strokes){
+    const points=strokes.flatMap(s=>s.points);if(points.length<2)return null;
+    const x0=Math.min(...points.map(p=>p.x)),x1=Math.max(...points.map(p=>p.x)),y0=Math.min(...points.map(p=>p.y)),y1=Math.max(...points.map(p=>p.y));
+    const w=Math.max(1,x1-x0),h=Math.max(1,y1-y0),scale=Math.min(16/w,22/h),ox=(18-w*scale)/2,oy=(24-h*scale)/2,cells=new Set();
+    const put=(x,y)=>{const ix=Math.round(x),iy=Math.round(y);for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++)if(ix+dx>=0&&ix+dx<18&&iy+dy>=0&&iy+dy<24&&dx*dx+dy*dy<=1)cells.add((iy+dy)*18+ix+dx)};
+    for(const stroke of strokes){for(let i=1;i<stroke.points.length;i++){const a=stroke.points[i-1],b=stroke.points[i],ax=ox+(a.x-x0)*scale,ay=oy+(a.y-y0)*scale,bx=ox+(b.x-x0)*scale,by=oy+(b.y-y0)*scale,n=Math.max(1,Math.ceil(Math.hypot(bx-ax,by-ay)*2));for(let j=0;j<=n;j++){const t=j/n;put(ax+(bx-ax)*t,ay+(by-ay)*t)}}}
+    return{aspect:w/h,points:[...cells].map(v=>({x:v%18,y:Math.floor(v/18)}))};
+  }
+  function bitmapScore(input,sample){
+    if(!input?.points.length||!sample.points.length)return 9;
+    const one=(a,b)=>a.reduce((sum,p)=>sum+Math.min(...b.map(q=>Math.hypot(p.x-q.x,p.y-q.y))),0)/a.length/22;
+    const shape=(one(input.points,sample.points)+one(sample.points,input.points))/2;
+    return shape+Math.abs(Math.log(Math.max(.08,input.aspect)/sample.aspect))*.035;
+  }
+  function recognizeNumber(strokes){
+    const valid=strokes.filter(s=>s.points.length>1);if(!valid.length)return null;const fs=valid.map(feature);
+    if(valid.length===1){
+      const f=fs[0];if(lineKind(f)==='v'&&f.h>20&&f.w<Math.max(15,f.h*.38))return'1';if(isOLoop(valid[0])&&f.chord/Math.max(1,f.diag)<.42&&f.L/f.diag<3.05)return'0';
+      const norm=f.pts.map(p=>({x:(p.x-f.x0)/Math.max(1,f.w),y:(p.y-f.y0)/Math.max(1,f.h)}));
+      const topRight=norm.some(p=>p.x>.72&&p.y<.38),lowerLeft=norm.some(p=>p.x<.32&&p.y>.55),bottomRight=norm.some(p=>p.x>.7&&p.y>.78);
+      if(f.w/f.h>.38&&f.w/f.h<1.65&&norm[0].y<.4&&norm[norm.length-1].y>.72&&norm[norm.length-1].x>.62&&topRight&&lowerLeft&&bottomRight)return'2';
+      // Die Reihenfolge des Stiftwegs trennt 3/5/8/9 wesentlich besser als
+      // eine ungeordnete Punktwolke. Nur sehr klare Pfadtreffer werden direkt
+      // uebernommen; breite oder mehrzuegige 1 und 4 laufen weiter zur Maske.
+      const ordered=orderedStroke(valid[0]),orderedRanked=Object.entries(sampledDigits).map(([variant,tpl])=>({digit:variant[0],score:orderedScore(ordered,tpl)})).sort((a,b)=>a.score-b.score),bestByDigit=[];
+      for(const hit of orderedRanked)if(!bestByDigit.some(x=>x.digit===hit.digit))bestByDigit.push(hit);
+      bestByDigit.sort((a,b)=>a.score-b.score);
+      if(bestByDigit[0]&&bestByDigit[0].score<.135&&bestByDigit[1].score-bestByDigit[0].score>.025)return bestByDigit[0].digit;
+    }
+    const hs=fs.filter(f=>lineKind(f)==='h'),vs=fs.filter(f=>lineKind(f)==='v');
+    if(vs.length>=1&&hs.length>=1&&valid.length<=3){const longV=vs.sort((a,b)=>b.span-a.span)[0],longH=hs.sort((a,b)=>b.span-a.span)[0];if(longV.span>24&&longH.span>18){const y=(longH.y0+longH.y1)/2;if(y>longV.y0+longV.h*.25&&y<longV.y1+5)return'4'}}
+    if(valid.length>=2&&valid.filter(isOLoop).length>=2)return'8';
+    const all=valid.flatMap(s=>s.points),x0=Math.min(...all.map(p=>p.x)),x1=Math.max(...all.map(p=>p.x)),y0=Math.min(...all.map(p=>p.y)),y1=Math.max(...all.map(p=>p.y)),w=Math.max(1,x1-x0),h=Math.max(1,y1-y0);
+    let topHorizontal=0,middleHorizontal=0,rightVerticalBelow=0,fallingDiagonal=0;
+    for(const stroke of valid){let topRun=0,middleRun=0,verticalRun=0,diagonalRun=0;for(let i=1;i<stroke.points.length;i++){
+      const a=stroke.points[i-1],b=stroke.points[i],dx=b.x-a.x,dy=b.y-a.y,mx=((a.x+b.x)/2-x0)/w,my=((a.y+b.y)/2-y0)/h,adx=Math.abs(dx),ady=Math.abs(dy);
+      topRun=adx>ady*1.65&&my<.25?topRun+adx:0;topHorizontal=Math.max(topHorizontal,topRun);
+      middleRun=adx>ady*1.65&&my>.32&&my<.72?middleRun+adx:0;middleHorizontal=Math.max(middleHorizontal,middleRun);
+      verticalRun=ady>adx*1.65&&mx>.46&&my>.46?verticalRun+ady:0;rightVerticalBelow=Math.max(rightVerticalBelow,verticalRun);
+      diagonalRun=adx>ady*.22&&ady>adx*.22&&dx*dy<0?diagonalRun+Math.hypot(dx,dy):0;fallingDiagonal=Math.max(fallingDiagonal,diagonalRun);
+    }}
+    // Europaeische 7 mit Querstrich: oberer Balken plus fallende Diagonale.
+    if(topHorizontal>w*.48&&fallingDiagonal>Math.hypot(w,h)*.24)return'7';
+    // Offene, mehrzuegige 4: mittlerer Querbalken und rechter Abstrich.
+    if(middleHorizontal>w*.46&&rightVerticalBelow>h*.30&&fallingDiagonal>Math.hypot(w,h)*.18)return'4';
+    const raster=rasterNumber(valid),bitmapRanked=handwritingSamples.map(sample=>({digit:sample.digit,score:bitmapScore(raster,sample)})).sort((a,b)=>a.score-b.score);
+    // Die empirischen Formen haben Vorrang, wenn sie klar passen. Der Abstand
+    // zum Zweitplatzierten verhindert dennoch blindes Raten bei Sonderformen.
+    if(bitmapRanked[0]&&bitmapRanked[0].score<.068&&bitmapRanked[1].score-bitmapRanked[0].score>.008)return bitmapRanked[0].digit;
+    const cloud=normalizedCloud(valid),byDigit=new Map();for(const [variant,tpl] of Object.entries(sampledDigits)){const digit=variant[0],score=cloudScore(cloud,tpl);if(score<(byDigit.get(digit)??9))byDigit.set(digit,score)}const ranked=[...byDigit].map(([digit,score])=>({digit,score})).sort((a,b)=>a.score-b.score);
+    // Nur eindeutige Treffer übernehmen. Bei Unsicherheit bleibt die Tinte im
+    // Feld, statt eine wahrscheinlich falsche Zahl einzutragen.
+    if(ranked[0]&&ranked[0].score<.175&&(!ranked[1]||ranked[1].score-ranked[0].score>.012))return ranked[0].digit;
+    // Bei leicht abweichender Schreibweise darf die Maskenerkennung als
+    // konservativer Rueckfall dienen, solange sie noch eindeutig ist.
+    return bitmapRanked[0]&&bitmapRanked[0].score<.088&&bitmapRanked[1].score-bitmapRanked[0].score>.014?bitmapRanked[0].digit:null;
+  }
+
+  function recognizeOperator(strokes){
+    const valid=strokes.filter(s=>s.points.length>1),fs=valid.map(feature);if(!valid.length)return null;
+    const hs=fs.filter(f=>lineKind(f)==='h'&&f.span>25),vs=fs.filter(f=>lineKind(f)==='v'&&f.span>20);
+    const shaft=hs.slice().sort((a,b)=>b.span-a.span)[0];
+    if(shaft){
+      // Die Pfeilspitze darf den Schaft berühren oder mit deutlichem Abstand
+      // rechts davon stehen. Entscheidend ist nur ihre >-Geometrie.
+      const detachedChevron=fs.some(f=>{
+        if(f===shaft||f.w<9||f.h<15||f.L/f.diag<1.16||f.x1<shaft.x1-18)return false;
+        const pts=f.pts.map(p=>({x:(p.x-f.x0)/Math.max(1,f.w),y:(p.y-f.y0)/Math.max(1,f.h)})),start=pts[0],end=pts[pts.length-1];
+        return start.x<.48&&end.x<.48&&pts.some(p=>p.x>.72&&p.y>.18&&p.y<.82);
+      });
+      const headLines=fs.filter(f=>f!==shaft&&lineKind(f)==='d'&&f.span>10&&f.x1>shaft.x1-18);
+      const headSigns=new Set(headLines.map(f=>Math.sign((f.end.x-f.start.x)*(f.end.y-f.start.y))).filter(Boolean));
+      if(detachedChevron||(headSigns.has(1)&&headSigns.has(-1)))return'->';
+    }
+    // Pfeil: Die waagerechte Achse darf ein eigener Strich oder Teil eines
+    // vollständig in einem Zug geschriebenen Pfeils sein. Die beiden Schrägen
+    // der Spitze werden unabhängig von Strichreihenfolge und Schreibrichtung gesucht.
+    const all=valid.flatMap(s=>s.points),x0=Math.min(...all.map(p=>p.x)),x1=Math.max(...all.map(p=>p.x)),width=x1-x0;
+    let horizontalMotion=0,positiveDiagonal=0,negativeDiagonal=0;
+    for(const stroke of valid){
+      let anchor=stroke.points[0];
+      for(let i=1;i<stroke.points.length;i++){
+        const p=stroke.points[i],dx=p.x-anchor.x,dy=p.y-anchor.y;if(Math.hypot(dx,dy)<4)continue;
+        const mx=(p.x+anchor.x)/2;
+        if(Math.abs(dx)>Math.abs(dy)*1.7)horizontalMotion+=Math.abs(dx);
+        if(mx>x0+width*.48&&Math.abs(dx)>3&&Math.abs(dy)>3&&Math.abs(dx/dy)>.22&&Math.abs(dx/dy)<4.5){
+          if(dx*dy>0)positiveDiagonal+=Math.hypot(dx,dy);else negativeDiagonal+=Math.hypot(dx,dy);
+        }
+        anchor=p;
+      }
+    }
+    const separateChevron=fs.some(f=>{
+      if(f.w<9||f.h<15||f.L/f.diag<1.18||f.x1<x0+width*.68)return false;
+      const pts=f.pts.map(p=>({x:(p.x-f.x0)/Math.max(1,f.w),y:(p.y-f.y0)/Math.max(1,f.h)})),start=pts[0],end=pts[pts.length-1];
+      return start.x<.48&&end.x<.48&&pts.some(p=>p.x>.68&&p.y>.18&&p.y<.82);
+    });
+    const hasShaft=(hs.length>0||horizontalMotion>Math.max(28,width*.42));
+    const hasTwoHeadSides=positiveDiagonal>11&&negativeDiagonal>11;
+    if(width>38&&hasShaft&&(hasTwoHeadSides||separateChevron))return'->';
+    if(hs.length&&vs.length){const h=hs[0],v=vs[0],hx=(h.x0+h.x1)/2,hy=(h.y0+h.y1)/2,vx=(v.x0+v.x1)/2,vy=(v.y0+v.y1)/2;if(Math.abs(hx-vx)<Math.max(h.w*.45,20)&&Math.abs(hy-vy)<Math.max(v.h*.45,20))return'+'}
+    return null;
+  }
+
+  function isScribble(stroke){if(!stroke||stroke.points.length<12)return false;const f=feature(stroke);if(f.diag<18)return false;let turns=0,last=null;for(let i=1;i<stroke.points.length;i++){const a=stroke.points[i-1],b=stroke.points[i],ang=Math.atan2(b.y-a.y,b.x-a.x);if(last!==null){let d=ang-last;while(d>Math.PI)d-=2*Math.PI;while(d<-Math.PI)d+=2*Math.PI;if(Math.abs(d)>.8)turns++}last=ang}return turns>=6&&f.L/f.diag>4.2}
+
+  function createField(type,owner,opts={}){
+    const el=document.createElement('div');el.className='field '+type+' new';
+    el.dataset.placeholder=type==='atom'?'H / O':type==='operator'?'+ / →':'1–9';
+    const canvas=document.createElement('canvas');canvas.width=type==='atom'?184:type==='operator'?320:100;canvas.height=type==='atom'?184:type==='operator'?164:120;
+    canvas.setAttribute('contenteditable','false');canvas.setAttribute('inputmode','none');canvas.setAttribute('spellcheck','false');canvas.setAttribute('draggable','false');
+    const input=document.createElement('input');input.className='scribble-input';input.type='text';input.placeholder=' ';input.autocomplete='off';input.autocorrect='off';input.autocapitalize='off';input.spellcheck=false;input.enterKeyHint='done';input.inputMode=type==='index'||type==='coefficient'?'numeric':'text';input.maxLength=type==='atom'?2:type==='operator'?4:3;input.setAttribute('aria-label',type==='atom'?'Atomsymbol':type==='index'?'Index':type==='coefficient'?'Koeffizient':'Operator');
+    el.setAttribute('role','application');
+    const label=document.createElement('span');label.className='type';label.textContent=type==='atom'?'Atom':type==='index'?'Index':type==='coefficient'?'Koeffizient':'Operator';
+    const value=document.createElement('span');value.className='value';const clear=document.createElement('button');clear.type='button';clear.className='clear';clear.textContent='×';clear.setAttribute('aria-label','Feld leeren');
+    el.append(canvas,input,label,value,clear);board.appendChild(el);
+    const state={id:'f'+nextId++,type,owner,el,canvas,input,value,strokes:[],active:null,timer:null,result:null,...opts};fields.set(state.id,state);if(NATIVE_SCRIBBLE)attachScribbleInput(state);else attachDrawing(state);
+    clear.addEventListener('click',ev=>{ev.stopPropagation();clearField(state)});setTimeout(()=>el.classList.remove('new'),230);return state;
+  }
+  function createSpecies(){const s={atoms:[],coefficient:null};s.atoms.push({symbol:null,atomField:createField('atom',null),indexField:null,index:null});s.atoms[0].atomField.owner=s;species.push(s);return s}
+  function ensureOperatorAfter(s){const idx=species.indexOf(s);if(!operators[idx])operators[idx]={value:null,field:createField('operator',null)};operators[idx].field.owner=operators[idx];return operators[idx]}
+  function ensureAfterAtom(s,atom){
+    if(!s.coefficient){s.coefficient=createField('coefficient',s)}
+    if(!atom.indexField){atom.indexField=createField('index',atom)}
+    const i=s.atoms.indexOf(atom);if(i===s.atoms.length-1){const next={symbol:null,atomField:createField('atom',s),indexField:null,index:null};s.atoms.push(next)}
+    ensureOperatorAfter(s);
+  }
+  function ensureSpeciesAfter(op){const i=operators.indexOf(op);if(!species[i+1]){const s=createSpecies();ensureOperatorAfter(s)}return species[i+1]}
+
+  function nativeValue(state,raw){
+    const compact=String(raw||'').normalize('NFKC').replace(/\s+/g,'');if(!compact)return null;
+    if(state.type==='atom'){const symbol=compact.replace(/0/g,'O').toUpperCase().match(/[HO]/);return symbol?symbol[0]:null}
+    if(state.type==='index'||state.type==='coefficient'){const match=compact.match(/\d{1,3}/);if(!match)return null;const n=Number(match[0]);return n>0&&n<=999?String(n):null}
+    // iPadOS liest ein handschriftliches Plus je nach Schreibweise oft als
+    // T. Im Operatorfeld ist diese Verwechslung eindeutig und kann deshalb
+    // sicher kontextbezogen korrigiert werden.
+    if(/[+＋Tt†]/.test(compact))return'+';
+    if(/(?:-|–|—|−)?[>＞→➝➞⟶⟹]/.test(compact))return'->';
+    return null;
+  }
+  function commitScribbleInput(state){
+    clearTimeout(state.timer);const raw=state.input.value;if(!raw.trim()){clearField(state);return}
+    const result=nativeValue(state,raw);if(!result){state.el.classList.remove('recognized');state.el.classList.add('unresolved');return}
+    state.result=result;state.input.value=result==='->'?'→':result;state.value.textContent=result==='->'?'→':result;state.el.classList.add('recognized');state.el.classList.remove('unresolved');
+    if(state.type==='atom'){const s=state.owner,atom=s.atoms.find(a=>a.atomField===state);atom.symbol=result;ensureAfterAtom(s,atom)}
+    else if(state.type==='index')state.owner.index=Number(result);
+    else if(state.type==='operator'){state.owner.value=result;ensureSpeciesAfter(state.owner)}
+    updateAll();scrollLatestIntoView(state);
+  }
+  function attachScribbleInput(state){
+    const input=state.input;
+    input.addEventListener('focus',()=>{state.el.classList.remove('dormant','unresolved')});
+    input.addEventListener('input',()=>{state.el.classList.remove('unresolved');clearTimeout(state.timer);state.timer=setTimeout(()=>commitScribbleInput(state),240)});
+    input.addEventListener('change',()=>commitScribbleInput(state));
+    input.addEventListener('blur',()=>{if(input.value.trim())commitScribbleInput(state);else if(state.result)clearField(state)});
+    input.addEventListener('keydown',ev=>{if(ev.key==='Enter'){ev.preventDefault();input.blur()}});
+  }
+
+  function attachDrawing(state){
+    const canvas=state.canvas,ctx=canvas.getContext('2d');ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle='#152238';ctx.lineWidth=state.type==='atom'?6:state.type==='operator'?7:6;
+    const pos=(ev,r=state.active?.rect||canvas.getBoundingClientRect())=>({x:(ev.clientX-r.left)*canvas.width/r.width,y:(ev.clientY-r.top)*canvas.height/r.height});
+    let lastPointerEvent=0;
+    function beginInput(pointerId,clientX,clientY,rect=canvas.getBoundingClientRect()){
+      if(state.active||viewGesture.active||suppressedTouches.has(pointerId))return false;clearTimeout(state.timer);state.el.classList.remove('synthetic','dormant');const p=pos({clientX,clientY},rect);state.active={pointerId,rect,points:[p]};state.strokes.push(state.active);state.el.classList.add('drawing');state.el.classList.remove('unresolved');return true;
+    }
+    function addPoint(clientX,clientY){
+      if(!state.active)return;const p=pos({clientX,clientY},state.active.rect),last=state.active.points[state.active.points.length-1];if(dist(p,last)>1.1){state.active.points.push(p);ctx.beginPath();ctx.moveTo(last.x,last.y);ctx.lineTo(p.x,p.y);ctx.stroke()}
+    }
+    function endInput(clientX,clientY){
+      if(!state.active)return;if(Number.isFinite(clientX)&&Number.isFinite(clientY))addPoint(clientX,clientY);state.active=null;state.el.classList.remove('drawing');clearTimeout(state.timer);state.timer=setTimeout(()=>recognizeField(state),RECOGNITION_IDLE_MS);
+    }
+    canvas.addEventListener('pointerdown',ev=>{lastPointerEvent=performance.now();if(viewGesture.active||suppressedTouches.has(ev.pointerId)||state.active||(ev.pointerType==='mouse'&&ev.button!==0))return;ev.preventDefault();canvas.setPointerCapture?.(ev.pointerId);beginInput(ev.pointerId,ev.clientX,ev.clientY)});
+    canvas.addEventListener('pointermove',ev=>{lastPointerEvent=performance.now();if(viewGesture.active||suppressedTouches.has(ev.pointerId)||!state.active||state.active.pointerId!==ev.pointerId)return;ev.preventDefault();const events=[...(typeof ev.getCoalescedEvents==='function'?ev.getCoalescedEvents():[]),ev];for(const sample of events)addPoint(sample.clientX,sample.clientY)});
+    const finish=ev=>{lastPointerEvent=performance.now();if(!state.active||state.active.pointerId!==ev.pointerId)return;ev.preventDefault();endInput(ev.clientX,ev.clientY)};
+    canvas.addEventListener('pointerup',finish);canvas.addEventListener('pointercancel',finish);
+    // Nur alte Webviews ohne Pointer Events benötigen Touch-Ersatzereignisse.
+    // Auf iPads würde eine parallele Registrierung den Apple Pencil doppelt
+    // verarbeiten und die systemweite Kritzel-Erkennung begünstigen.
+    if(!('PointerEvent' in window)){
+      canvas.addEventListener('touchstart',ev=>{if(state.active)return;const t=ev.changedTouches[0];if(!t)return;ev.preventDefault();beginInput('touch-'+t.identifier,t.clientX,t.clientY)},{passive:false});
+      canvas.addEventListener('touchmove',ev=>{if(!state.active||!String(state.active.pointerId).startsWith('touch-'))return;const id=Number(String(state.active.pointerId).slice(6)),t=Array.from(ev.changedTouches).find(x=>x.identifier===id)||Array.from(ev.touches).find(x=>x.identifier===id);if(!t)return;ev.preventDefault();addPoint(t.clientX,t.clientY)},{passive:false});
+      const touchFinish=ev=>{if(!state.active||!String(state.active.pointerId).startsWith('touch-'))return;const id=Number(String(state.active.pointerId).slice(6)),t=Array.from(ev.changedTouches).find(x=>x.identifier===id);ev.preventDefault();endInput(t?.clientX,t?.clientY)};
+      canvas.addEventListener('touchend',touchFinish,{passive:false});canvas.addEventListener('touchcancel',touchFinish,{passive:false});
+    }
+  }
+  function redrawInk(state){
+    const ctx=state.canvas.getContext('2d');ctx.clearRect(0,0,state.canvas.width,state.canvas.height);ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle='#152238';ctx.lineWidth=state.type==='atom'?6:state.type==='operator'?7:6;
+    for(const stroke of state.strokes){for(let i=1;i<stroke.points.length;i++){ctx.beginPath();ctx.moveTo(stroke.points[i-1].x,stroke.points[i-1].y);ctx.lineTo(stroke.points[i].x,stroke.points[i].y);ctx.stroke()}}
+  }
+  function eraseCanvas(state){const ctx=state.canvas.getContext('2d');ctx.clearRect(0,0,state.canvas.width,state.canvas.height);state.strokes=[];state.result=null;if(state.input)state.input.value='';state.value.textContent='';state.el.classList.remove('recognized','unresolved')}
+  function clearField(state,{quiet=false}={}){
+    clearTimeout(state.timer);state.el.classList.remove('synthetic');eraseCanvas(state);
+    if(state.type==='atom'){const s=state.owner,atom=s.atoms.find(a=>a.atomField===state);if(atom){atom.symbol=null;if(atom.indexField)clearField(atom.indexField,{quiet:true})}}
+    else if(state.type==='index')state.owner.index=null;
+    else if(state.type==='coefficient')state.owner.coefficient.result=null;
+    else if(state.type==='operator')state.owner.value=null;
+    if(!quiet)updateAll();
+  }
+  function recognizeField(state){
+    if(state.active||!state.strokes.length)return;
+    // Komplexe Ziffern wie 6, 8 und 9 dürfen nicht als Löschkritzel
+    // interpretiert werden. Zahlenfelder werden ausschließlich mit dem
+    // äußeren Radierer gelöscht.
+    if(state.type!=='index'&&state.type!=='coefficient'&&isScribble(state.strokes.at(-1))){clearField(state);return}
+    let result=state.type==='atom'?recognizeAtom(state.strokes):state.type==='operator'?recognizeOperator(state.strokes):recognizeNumber(state.strokes);
+    if(!result){state.el.classList.remove('recognized');state.el.classList.add('unresolved');return}
+    state.result=result;state.value.textContent=result==='->'?'→':result;state.el.classList.add('recognized');state.el.classList.remove('unresolved');
+    if(state.type==='atom'){const s=state.owner,atom=s.atoms.find(a=>a.atomField===state);atom.symbol=result;ensureAfterAtom(s,atom)}
+    else if(state.type==='index')state.owner.index=Number(result);
+    else if(state.type==='operator'){state.owner.value=result;ensureSpeciesAfter(state.owner)}
+    updateAll();scrollLatestIntoView(state);
+  }
+
+  function relayout(){
+    const baseY=510,reactionDone=reactionIsComplete();let x=470;
+    for(let si=0;si<species.length;si++){
+      const s=species[si],op=operators[si],finalComplete=reactionDone&&si===species.length-1,completed=Boolean(op?.value||finalComplete);
+      const visibleAtoms=s.atoms;
+      for(const a of s.atoms){a.atomField.el.style.display='block';a.atomField.el.classList[completed&&!a.symbol&&!a.atomField.strokes.length?'add':'remove']('dormant')}
+      if(s.coefficient){s.coefficient.el.style.display='block';s.coefficient.el.classList[completed&&!s.coefficient.result&&!s.coefficient.strokes.length?'add':'remove']('dormant');s.coefficient.el.style.left=x+'px';s.coefficient.el.style.top=(baseY+22)+'px'}
+      const atomStart=x+58;
+      visibleAtoms.forEach((a,i)=>{const ax=atomStart+i*118;a.atomField.el.style.left=ax+'px';a.atomField.el.style.top=baseY+'px';if(a.indexField){a.indexField.el.style.display='block';a.indexField.el.classList[completed&&!a.indexField.result&&!a.indexField.strokes.length?'add':'remove']('dormant');a.indexField.el.style.left=(ax+76)+'px';a.indexField.el.style.top=(baseY+59)+'px'}});
+      x=atomStart+visibleAtoms.length*118+26;
+      if(op){op.field.el.style.display='block';op.field.el.classList[finalComplete&&!op.value?'add':'remove']('dormant');op.field.el.style.left=(x+16)+'px';op.field.el.style.top=(baseY+5)+'px';x+=200}
+    }
+  }
+  function displaySpecies(s){
+    const atoms=s.atoms.filter(a=>a.symbol);if(!atoms.length)return'';const c=s.coefficient?.result&&s.coefficient.result!=='1'?s.coefficient.result+' ':'';
+    return c+atoms.map(a=>a.symbol+(a.index&&a.index!==1?'<sub>'+a.index+'</sub>':'')).join('');
+  }
+  function equationParts(){const out=[];for(let i=0;i<species.length;i++){const f=displaySpecies(species[i]);if(f)out.push({kind:'formula',html:f,species:species[i]});const op=operators[i];if(op?.value&&species[i+1]&&displaySpecies(species[i+1]))out.push({kind:'operator',value:op.value,html:op.value==='->'?' → ':' + '})}while(out.at(-1)?.kind==='operator')out.pop();return out}
+  function atomsIn(s){const coef=Number(s.coefficient?.result)||1,count={H:0,O:0};for(const a of s.atoms){if(a.symbol)count[a.symbol]=(count[a.symbol]||0)*(1)+(Number(a.index)||1)*coef}return count}
+  function reactionIsComplete(){
+    const parts=equationParts(),arrow=parts.findIndex(p=>p.kind==='operator'&&p.value==='->');if(arrow<0)return false;let left={H:0,O:0},right={H:0,O:0};
+    for(let i=0;i<parts.length;i++){const p=parts[i];if(p.kind!=='formula')continue;const c=atomsIn(p.species),target=i<arrow?left:right;target.H+=c.H||0;target.O+=c.O||0}
+    const products=parts.slice(arrow+1).filter(p=>p.kind==='formula'),hasWater=parts.slice(0,arrow).some(p=>p.kind==='formula'&&p.species.atoms.some(a=>a.symbol==='H')&&p.species.atoms.some(a=>a.symbol==='O'));
+    const hasH2=products.some(p=>{const c=atomsIn({...p.species,coefficient:{result:1}});return c.H===2&&c.O===0}),hasO2=products.some(p=>{const c=atomsIn({...p.species,coefficient:{result:1}});return c.O===2&&c.H===0});
+    return left.H===right.H&&left.O===right.O&&left.H>0&&left.O>0&&hasWater&&hasH2&&hasO2;
+  }
+  function analyze(){
+    const parts=equationParts(),arrowIndex=parts.findIndex(p=>p.kind==='operator'&&p.value==='->');let left={H:0,O:0},right={H:0,O:0};
+    if(arrowIndex>=0){for(let i=0;i<parts.length;i++){if(parts[i].kind!=='formula')continue;const c=atomsIn(parts[i].species),target=i<arrowIndex?left:right;target.H+=c.H||0;target.O+=c.O||0}}
+    hCount.textContent=left.H+' · '+right.H;oCount.textContent=left.O+' · '+right.O;balanceCard.classList.remove('success','error');
+    const formulas=parts.filter(p=>p.kind==='formula');
+    if(!formulas.length){messageEl.textContent='Noch keine Gleichung';detailEl.textContent='Leere Zahlenfelder bedeuten automatisch 1.';return}
+    if(arrowIndex<0){messageEl.textContent='Reaktionspfeil fehlt';detailEl.textContent='Schreibe → oder -> in ein Operatorfeld.';return}
+    const balanced=left.H===right.H&&left.O===right.O&&left.H>0&&left.O>0;
+    const hasWater=parts.slice(0,arrowIndex).some(p=>p.kind==='formula'&&p.species.atoms.some(a=>a.symbol==='H')&&p.species.atoms.some(a=>a.symbol==='O'));
+    const products=parts.slice(arrowIndex+1).filter(p=>p.kind==='formula'),hasH2=products.some(p=>{const c=atomsIn({...p.species,coefficient:{result:1}});return c.H===2&&c.O===0}),hasO2=products.some(p=>{const c=atomsIn({...p.species,coefficient:{result:1}});return c.O===2&&c.H===0});
+    if(balanced&&hasWater&&hasH2&&hasO2){balanceCard.classList.add('success');messageEl.textContent='Richtig ausgeglichen';detailEl.textContent='Auf beiden Seiten stehen 4 H- und 2 O-Atome.'}
+    else{balanceCard.classList.add('error');messageEl.textContent=balanced?'Atome stimmen – Produkte prüfen':'Noch nicht ausgeglichen';detailEl.textContent=hasWater?'Vergleiche die Atomzahlen auf beiden Seiten.':'Auf der linken Seite muss Wasser (H₂O) stehen.'}
+  }
+  function updateAll(){relayout();const parts=equationParts();equationEl.innerHTML=parts.length?parts.map(p=>p.html).join(''):'<span class="placeholder">Beginne mit H oder O …</span>';analyze()}
+  function scrollLatestIntoView(state){
+    setTimeout(()=>{const left=parseFloat(state.el.style.left)||0,top=parseFloat(state.el.style.top)||0,w=state.el.offsetWidth||100,h=state.el.offsetHeight||80;const sx=panX+left*zoom,sy=panY+top*zoom,margin=70;let changed=false;if(sx<margin){panX+=margin-sx;changed=true}else if(sx+w*zoom>viewport.clientWidth-margin){panX-=sx+w*zoom-(viewport.clientWidth-margin);changed=true}if(sy<margin){panY+=margin-sy;changed=true}else if(sy+h*zoom>viewport.clientHeight-margin){panY-=sy+h*zoom-(viewport.clientHeight-margin);changed=true}if(changed)applyView()},250)
+  }
+  function removeAll(){for(const f of fields.values()){clearTimeout(f.timer);f.el.remove()}fields.clear();species.length=0;operators.length=0;nextId=1}
+  function reset(){endEraser();removeAll();const s=createSpecies();ensureOperatorAfter(s);updateAll();requestAnimationFrame(centerView)}
+  function setRecognized(field,value){eraseCanvas(field);field.result=value;if(field.input)field.input.value=value==='->'?'→':value;field.value.textContent=value==='->'?'→':value;field.el.classList.add('recognized','synthetic')}
+  function fillDemo(){
+    reset();let s=species[0],a=s.atoms[0];setRecognized(a.atomField,'H');a.symbol='H';ensureAfterAtom(s,a);setRecognized(a.indexField,'2');a.index=2;
+    a=s.atoms[1];setRecognized(a.atomField,'O');a.symbol='O';ensureAfterAtom(s,a);setRecognized(s.coefficient,'2');
+    setRecognized(operators[0].field,'->');operators[0].value='->';s=ensureSpeciesAfter(operators[0]);a=s.atoms[0];setRecognized(a.atomField,'H');a.symbol='H';ensureAfterAtom(s,a);setRecognized(a.indexField,'2');a.index=2;setRecognized(s.coefficient,'2');
+    setRecognized(operators[1].field,'+');operators[1].value='+';s=ensureSpeciesAfter(operators[1]);a=s.atoms[0];setRecognized(a.atomField,'O');a.symbol='O';ensureAfterAtom(s,a);setRecognized(a.indexField,'2');a.index=2;updateAll();zoom=clamp(viewport.clientWidth/1740,MIN_ZOOM,.9);panX=40-470*zoom;panY=viewport.clientHeight/2-550*zoom;applyView();
+  }
+
+  function localPointer(ev){const r=viewport.getBoundingClientRect();return{x:ev.clientX-r.left,y:ev.clientY-r.top}}
+  function pointerTouchesRect(point,rect,radius){const x=clamp(point.x,rect.left,rect.right),y=clamp(point.y,rect.top,rect.bottom);return Math.hypot(point.x-x,point.y-y)<=radius}
+  function queueEraseUpdate(){if(eraseUpdateFrame)return;eraseUpdateFrame=requestAnimationFrame(()=>{eraseUpdateFrame=0;updateAll()})}
+  function eraserLayer(state){return state.type==='index'||state.type==='coefficient'?3:state.type==='operator'?2:1}
+  function topFieldAt(point,radius){
+    return [...fields.values()].filter(state=>state.el.isConnected!==false&&pointerTouchesRect(point,state.el.getBoundingClientRect(),radius)).sort((a,b)=>eraserLayer(b)-eraserLayer(a)||(Number(b.id.slice(1))||0)-(Number(a.id.slice(1))||0))[0]||null;
+  }
+  function eraseAlong(a,b){
+    if(!eraseGesture)return;const radius=eraseGesture.pointerType==='touch'?15:11,length=dist(a,b),steps=Math.max(1,Math.ceil(length/(radius*.45)));
+    for(let i=0;i<=steps;i++){
+      const p={x:a.x+(b.x-a.x)*i/steps,y:a.y+(b.y-a.y)*i/steps};
+      const state=topFieldAt(p,radius);if(!state||eraseGesture.erased.has(state.id))continue;
+      // Das oberste Feld bleibt für die gesamte Wischgeste eine Schutzebene.
+      // Nach seinem Löschen darf der gleiche Radiererpfad nicht zum darunter
+      // liegenden Atomfeld durchfallen.
+      eraseGesture.erased.add(state.id);if(!state.result&&!state.strokes.length)continue;clearField(state,{quiet:true});queueEraseUpdate();
+    }
+  }
+  function showEraser(p,type){const d=type==='touch'?30:22;eraserCursor.style.width=d+'px';eraserCursor.style.height=d+'px';eraserCursor.style.left=p.x+'px';eraserCursor.style.top=p.y+'px';eraserCursor.style.display='block'}
+  function lockScribbleForErasing(locked){
+    if(locked&&document.activeElement?.classList?.contains('scribble-input'))document.activeElement.blur();
+    for(const state of fields.values()){if(!state.input)continue;state.input.readOnly=locked;state.input.disabled=locked}
+    document.body.classList.toggle('erasing',locked);
+  }
+  function endEraser(){eraseGesture=null;lockScribbleForErasing(false);eraserCursor.style.display='none';if(eraseUpdateFrame){cancelAnimationFrame(eraseUpdateFrame);eraseUpdateFrame=0;updateAll()}}
+
+  viewport.addEventListener('pointerdown',ev=>{
+    const scribbleTarget=ev.target?.closest?.('.scribble-input');
+    if(ev.pointerType==='pen'&&!scribbleTarget){ev.preventDefault();window.getSelection?.()?.removeAllRanges?.()}
+    if(ev.pointerType==='touch'){
+      touchPoints.set(ev.pointerId,localPointer(ev));
+      if(touchPoints.size>=2){
+        endEraser();cancelTouchDrawing();const pts=[...touchPoints.values()].slice(0,2),c=pointCenter(pts[0],pts[1]);viewGesture.active=true;viewGesture.startDistance=Math.max(1,dist(pts[0],pts[1]));viewGesture.startZoom=zoom;viewGesture.world={x:(c.x-panX)/zoom,y:(c.y-panY)/zoom};for(const id of touchPoints.keys())suppressedTouches.add(id);viewport.classList.add('moving');ev.preventDefault();ev.stopPropagation();return;
+      }
+    }
+    if((ev.pointerType!=='mouse'||ev.button===0)&&!ev.target?.closest?.('.field')){
+      lockScribbleForErasing(true);const p={x:ev.clientX,y:ev.clientY};eraseGesture={pointerId:ev.pointerId,pointerType:ev.pointerType,last:p,erased:new Set()};viewport.setPointerCapture?.(ev.pointerId);showEraser(p,ev.pointerType);eraseAlong(p,p);ev.preventDefault();ev.stopPropagation();
+    }
+  },true);
+
+  viewport.addEventListener('pointermove',ev=>{
+    if(ev.pointerType==='pen'&&(eraseGesture||!ev.target?.closest?.('.scribble-input')))ev.preventDefault();
+    if(ev.pointerType==='touch'&&touchPoints.has(ev.pointerId))touchPoints.set(ev.pointerId,localPointer(ev));
+    if(viewGesture.active&&touchPoints.size>=2){
+      const pts=[...touchPoints.values()].slice(0,2),c=pointCenter(pts[0],pts[1]),newZoom=clamp(viewGesture.startZoom*dist(pts[0],pts[1])/viewGesture.startDistance,MIN_ZOOM,MAX_ZOOM);zoom=newZoom;panX=c.x-viewGesture.world.x*zoom;panY=c.y-viewGesture.world.y*zoom;applyView();ev.preventDefault();ev.stopPropagation();return;
+    }
+    if(eraseGesture?.pointerId===ev.pointerId){const p={x:ev.clientX,y:ev.clientY};eraseAlong(eraseGesture.last,p);eraseGesture.last=p;showEraser(p,eraseGesture.pointerType);ev.preventDefault();ev.stopPropagation()}
+  },true);
+
+  function finishViewportPointer(ev){
+    if(ev.pointerType==='pen'&&(eraseGesture||!ev.target?.closest?.('.scribble-input')))ev.preventDefault();
+    const wasSuppressed=suppressedTouches.has(ev.pointerId),wasErasing=eraseGesture?.pointerId===ev.pointerId;
+    if(wasErasing)endEraser();if(ev.pointerType==='touch')touchPoints.delete(ev.pointerId);
+    if(viewGesture.active&&touchPoints.size<2){viewGesture.active=false;viewport.classList.remove('moving')}
+    if(wasSuppressed){suppressedTouches.delete(ev.pointerId);ev.preventDefault();ev.stopPropagation()}else if(wasErasing){ev.preventDefault();ev.stopPropagation()}
+  }
+  viewport.addEventListener('pointerup',finishViewportPointer,true);viewport.addEventListener('pointercancel',finishViewportPointer,true);
+  viewport.addEventListener('wheel',ev=>{ev.preventDefault();const p=localPointer(ev),world={x:(p.x-panX)/zoom,y:(p.y-panY)/zoom},next=clamp(zoom*Math.exp(-ev.deltaY*.0015),MIN_ZOOM,MAX_ZOOM);zoom=next;panX=p.x-world.x*zoom;panY=p.y-world.y*zoom;applyView()},{passive:false});
+  for(const type of ['gesturestart','gesturechange','gestureend'])viewport.addEventListener(type,ev=>ev.preventDefault(),{passive:false});
+
+  document.getElementById('reset').addEventListener('click',reset);document.getElementById('demo').addEventListener('click',fillDemo);document.getElementById('center').addEventListener('click',centerView);window.addEventListener('resize',()=>{relayout();applyView()});document.addEventListener('contextmenu',e=>{if(!e.target?.closest?.('.scribble-input'))e.preventDefault()});document.addEventListener('dragstart',e=>e.preventDefault());document.addEventListener('selectstart',e=>{if(!e.target?.closest?.('.scribble-input'))e.preventDefault()});reset();
+})();
+</script>
+</body>
+</html>
