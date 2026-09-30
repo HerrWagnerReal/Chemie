@@ -1,0 +1,1912 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Redox-Übungen</title>
+  <style>
+    :root {
+      --card: #ffffff;
+      --border: #cfd6e4;
+      --text: #1f2937;
+      --muted: #5b6472;
+      --accent: #2563eb;
+      --accent-soft: #eaf2ff;
+      --ok: #15803d;
+      --ok-bg: #ecfdf3;
+      --warn: #b45309;
+      --warn-bg: #fff7ed;
+      --shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 1100px;
+      margin: 40px auto;
+      padding: 0 20px;
+      color: var(--text);
+      background: linear-gradient(180deg, #f8fafc 0%, #eef3fb 100%);
+    }
+
+    .page-title { margin-bottom: 18px; }
+    .page-title h1 { margin: 0 0 8px 0; font-size: 32px; }
+    .page-title p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.5;
+      max-width: 780px;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 1.4fr 0.9fr;
+      gap: 24px;
+      align-items: start;
+    }
+
+    .panel, .sidebar {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+    }
+
+    .panel { padding: 24px; }
+    .sidebar {
+      padding: 22px;
+      position: sticky;
+      top: 20px;
+    }
+
+    .task-box {
+      background: var(--accent-soft);
+      border: 1px solid #c8dafc;
+      border-radius: 14px;
+      padding: 16px 18px;
+      margin-bottom: 20px;
+      line-height: 1.6;
+    }
+
+    .task-label {
+      font-size: 28px !important;
+      font-weight: 900 !important;
+      color: #2563eb;
+      letter-spacing: 1px;
+    }
+
+    h2 { margin: 24px 0 10px; font-size: 22px; }
+    h3 { margin: 18px 0 8px; font-size: 18px; }
+
+    .eq-row {
+      display: grid;
+      grid-template-columns: 1fr 120px;
+      gap: 12px;
+      align-items: start;
+      margin-bottom: 8px;
+    }
+
+    .mult-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .mult-wrap label {
+      font-size: 14px;
+      color: var(--muted);
+      font-weight: bold;
+    }
+
+    .mult-wrap input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #9aa6ba;
+      border-radius: 10px;
+      font-size: 18px;
+      background: #fff;
+    }
+
+    .mult-wrap input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+    }
+
+    .editor {
+      min-height: 92px;
+      border: 1px solid #9aa6ba;
+      border-radius: 10px;
+      padding: 12px;
+      font-size: 24px;
+      white-space: pre-wrap;
+      outline: none;
+      line-height: 1.5;
+      background: #fff;
+    }
+
+    .editor:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+    }
+
+    .editor:empty::before {
+      content: attr(data-placeholder);
+      color: #8a94a6;
+    }
+
+    .preview-box {
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: #f8fafc;
+      border: 1px dashed var(--border);
+      font-size: 15px;
+      line-height: 1.5;
+      color: var(--muted);
+    }
+
+    .preview-box strong {
+      color: var(--text);
+    }
+
+    .buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    button {
+      appearance: none;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 15px;
+      cursor: pointer;
+      background: #fff;
+      color: var(--text);
+    }
+
+    button.primary {
+      background: var(--accent);
+      color: white;
+      border-color: var(--accent);
+    }
+
+    .feedback, .solution {
+      margin-top: 16px;
+      border-radius: 12px;
+      padding: 12px 14px;
+      line-height: 1.5;
+      display: none;
+    }
+
+    .feedback.ok {
+      display: block;
+      background: var(--ok-bg);
+      color: var(--ok);
+      border: 1px solid #b7efc7;
+    }
+
+    .feedback.warn {
+      display: block;
+      background: var(--warn-bg);
+      color: var(--warn);
+      border: 1px solid #fed7aa;
+    }
+
+    .solution.show {
+      display: block;
+      background: #f8fafc;
+      border: 1px solid var(--border);
+    }
+
+    .hint-title {
+      margin: 0 0 10px 0;
+      font-size: 20px;
+    }
+
+    .hint {
+      margin-top: 12px;
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .hint-block {
+      margin-top: 18px;
+      padding: 14px 16px;
+      border-radius: 12px;
+      background: #f8fafc;
+      border: 1px solid var(--border);
+    }
+
+    .steps-list {
+      list-style: none;
+      margin: 10px 0 0 0;
+      padding: 0;
+    }
+
+    .step-item {
+      margin: 10px 0;
+      padding-left: 30px;
+      position: relative;
+      line-height: 1.5;
+    }
+
+    .step-item::before {
+      content: "☐";
+      position: absolute;
+      left: 0;
+      top: 0;
+      color: #64748b;
+      font-size: 18px;
+      line-height: 1;
+    }
+
+    .step-item.done::before {
+      content: "☑";
+      color: var(--ok);
+    }
+
+    .step-item.done {
+      color: var(--ok);
+    }
+
+    code {
+      background: #eef2f7;
+      padding: 2px 6px;
+      border-radius: 5px;
+      font-size: 0.95em;
+    }
+
+    ul { margin: 10px 0 0 18px; padding: 0; }
+    ol { margin: 10px 0 0 20px; padding: 0; }
+    li { margin: 8px 0; }
+
+    sub { font-size: 0.7em; vertical-align: sub; }
+    sup { font-size: 0.7em; vertical-align: super; }
+
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
+      .sidebar { position: static; }
+    }
+
+    @media (max-width: 640px) {
+      .eq-row { grid-template-columns: 1fr; }
+    }
+
+
+    .mode-tabs {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin: 0 0 18px 0;
+    }
+
+    .mode-tabs button {
+      font-weight: 700;
+      padding: 11px 16px;
+    }
+
+    .mode-tabs button.active {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+      box-shadow: 0 5px 15px rgba(37, 99, 235, 0.18);
+    }
+
+    .tutorial-panel, .learning-panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      padding: 22px;
+      margin-bottom: 24px;
+    }
+
+    .tutorial-panel[hidden], .learning-panel[hidden], .layout[hidden] { display: none !important; }
+
+    .tutorial-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .tutorial-step {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      background: #f8fafc;
+      line-height: 1.5;
+    }
+
+    .tutorial-step .num {
+      width: 30px;
+      height: 30px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-weight: 800;
+      margin-bottom: 8px;
+    }
+
+    .equation-demo {
+      margin-top: 8px;
+      padding: 9px 10px;
+      border-radius: 9px;
+      background: #fff;
+      border: 1px solid #d7deea;
+      font-size: 18px;
+      font-weight: 700;
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+
+    .learning-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .learning-progress {
+      min-width: 112px;
+      text-align: right;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .progress-track {
+      height: 8px;
+      background: #e5eaf2;
+      border-radius: 999px;
+      overflow: hidden;
+      margin: 8px 0 16px;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: var(--accent);
+      width: 14.2857%;
+      transition: width .2s ease;
+    }
+
+    .learning-content {
+      display: grid;
+      grid-template-columns: 1.2fr .8fr;
+      gap: 14px;
+      align-items: start;
+    }
+
+    .learning-instruction, .charge-card {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 16px;
+      background: #f8fafc;
+      line-height: 1.55;
+      min-height: 118px;
+    }
+
+    .learning-instruction h3, .charge-card h3 { margin: 0 0 8px; }
+
+    .input-example {
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid #c8dafc;
+      background: var(--accent-soft);
+      line-height: 1.5;
+    }
+
+    .input-example code {
+      display: inline-block;
+      margin-top: 5px;
+      font-size: 16px;
+      user-select: all;
+    }
+
+    .learning-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 14px;
+      flex-wrap: wrap;
+    }
+
+    .editor.learn-focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 4px rgba(37, 99, 235, .11);
+    }
+
+    .charge-rule {
+      margin-top: 8px;
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    .charge-result {
+      margin-top: 8px;
+      font-size: 19px;
+      font-weight: 800;
+      color: var(--accent);
+    }
+
+    @media (max-width: 900px) {
+      .tutorial-grid { grid-template-columns: 1fr 1fr; }
+      .learning-content { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 640px) {
+      .tutorial-grid { grid-template-columns: 1fr; }
+      .learning-head { align-items: flex-start; }
+      .learning-progress { text-align: left; }
+    }
+
+
+    /* Kompaktes Vollbild-Layout, insbesondere für iPads */
+    html, body { min-height: 100%; }
+    body {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 14px 16px;
+    }
+    .page-title { margin-bottom: 8px; }
+    .page-title h1 { font-size: 25px; margin-bottom: 2px; }
+    .page-title p { font-size: 13px; line-height: 1.25; max-width: none; }
+    .mode-tabs { margin-bottom: 8px; gap: 7px; }
+    .mode-tabs button { padding: 7px 12px; font-size: 14px; }
+    .layout { gap: 12px; grid-template-columns: minmax(0, 1.48fr) minmax(245px, .72fr); }
+    .panel, .sidebar, .learning-panel, .tutorial-panel { border-radius: 12px; }
+    .panel { padding: 13px 15px; }
+    .sidebar { padding: 12px; top: 8px; }
+    .task-box { padding: 9px 12px; margin-bottom: 8px; border-radius: 10px; line-height: 1.35; font-size: 14px; }
+    .task-label { font-size: 18px !important; display: inline; margin-right: 7px; }
+    h2 { margin: 10px 0 7px; font-size: 18px; }
+    h3 { margin: 8px 0 5px; font-size: 15px; }
+    .eq-row { grid-template-columns: 1fr 98px; gap: 8px; margin-bottom: 4px; }
+    .editor { min-height: 54px; padding: 8px 10px; font-size: 20px; line-height: 1.25; }
+    .mult-wrap { gap: 3px; }
+    .mult-wrap label { font-size: 11px; }
+    .mult-wrap input { padding: 7px 8px; font-size: 17px; }
+    .preview-box { margin-top: 4px; padding: 5px 8px; font-size: 12px; line-height: 1.25; }
+    .buttons { gap: 7px; margin-top: 8px; }
+    button { min-height: 34px; padding: 7px 11px; font-size: 13px; touch-action: manipulation; }
+    .feedback, .solution { margin-top: 7px; padding: 7px 9px; line-height: 1.3; font-size: 13px; }
+    .hint-title { font-size: 16px; margin-bottom: 5px; }
+    .hint-block { margin-top: 7px; padding: 8px 10px; font-size: 12px; }
+    .steps-list { margin-top: 4px; }
+    .step-item { margin: 5px 0; padding-left: 21px; line-height: 1.22; font-size: 12px; }
+    .step-item::before { font-size: 15px; }
+    .hint { margin-top: 4px; font-size: 11px; line-height: 1.3; }
+
+    /* Lernmodus nimmt die rechte Spalte statt zusätzlichen Platz oberhalb ein */
+    .learning-panel { padding: 12px; margin: 0; box-shadow: var(--shadow); }
+    body[data-mode="learn"] .sidebar { display: none; }
+    body[data-mode="learn"] .layout { grid-template-columns: minmax(0, 1.42fr) minmax(260px, .78fr); }
+    body[data-mode="learn"] .learning-panel { display: block; }
+    .learning-head { margin-bottom: 5px; gap: 8px; align-items: flex-start; }
+    .learning-head h2 { font-size: 17px !important; }
+    .learning-progress { min-width: 80px; font-size: 12px; }
+    .progress-track { height: 6px; margin: 5px 0 8px; }
+    .learning-content { display: block; }
+    .learning-instruction, .charge-card { min-height: 0; padding: 9px 10px; font-size: 12px; line-height: 1.3; }
+    .charge-card { margin-top: 7px; }
+    .learning-instruction h3, .charge-card h3 { font-size: 14px; margin-bottom: 4px; }
+    .learning-instruction p { margin: 5px 0; }
+    .input-example { margin-top: 6px; padding: 6px 8px; line-height: 1.25; }
+    .input-example code { margin-top: 3px; font-size: 13px; }
+    .charge-rule { margin-top: 4px; font-size: 11px; }
+    .charge-result { margin-top: 5px; font-size: 15px; }
+    .learning-actions { gap: 6px; margin-top: 7px; }
+
+    .electron-simple {
+      margin: 8px 0;
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      line-height: 1.45;
+    }
+
+    /* Tutorial nutzt exakt dieselben Eingabefelder wie die anderen Modi. */
+    body[data-mode="tutorial"] .sidebar,
+    body[data-mode="tutorial"] .learning-panel { display:none !important; }
+    body[data-mode="tutorial"] .layout { grid-template-columns:minmax(0,1.5fr) minmax(255px,.7fr); }
+    body[data-mode="tutorial"] .tutorial-panel { display:block; }
+    body[data-mode="tutorial"] .buttons button:not(.primary) { display:none; }
+    .tutorial-panel { padding:12px; margin:0; box-shadow:var(--shadow); }
+    .tutorial-head { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }
+    .tutorial-head h2 { margin:0; font-size:17px; }
+    .tutorial-subtitle { color:var(--muted); margin-top:3px; font-size:11px; }
+    .tutorial-progress-text { font-weight:800; color:var(--accent); font-size:11px; white-space:nowrap; }
+    .tutorial-track { margin:5px 0 8px; }
+    .tutorial-guide { border:1px solid var(--border); border-radius:10px; background:#f8fafc; padding:10px; }
+    .tutorial-step-tag { display:inline-block; background:var(--accent-soft); color:var(--accent); font-size:10px; font-weight:800; border-radius:999px; padding:3px 7px; }
+    .tutorial-guide h3 { font-size:15px; margin:6px 0 5px; }
+    .tutorial-explanation { font-size:12px; line-height:1.3; }
+    .tutorial-explanation p { margin:5px 0; }
+    .tutorial-prompt { margin-top:7px; font-size:12px; line-height:1.3; font-weight:800; }
+    .tutorial-hint { margin-top:7px; padding:7px 8px; border-radius:8px; background:#fff; border:1px solid var(--border); color:var(--muted); font-size:11px; line-height:1.3; }
+    .tutorial-feedback { min-height:0; margin-top:7px; padding:0; border-radius:8px; font-size:11px; line-height:1.25; }
+    .tutorial-feedback.ok, .tutorial-feedback.warn { padding:6px 7px; }
+    .tutorial-feedback.ok { background:var(--ok-bg); color:var(--ok); border:1px solid #b7efc7; }
+    .tutorial-feedback.warn { background:var(--warn-bg); color:var(--warn); border:1px solid #fed7aa; }
+    .tutorial-minihelp { display:grid; gap:4px; margin-top:7px; padding:7px 8px; border-radius:9px; background:#fff; border:1px solid var(--border); font-size:10px; line-height:1.25; }
+    .tutorial-minihelp span { display:block; }
+    .tutorial-actions { display:flex; gap:6px; margin-top:7px; }
+    .tutorial-focus { border-color:var(--accent) !important; box-shadow:0 0 0 3px rgba(37,99,235,.12) !important; }
+    .tutorial-muted { opacity:.58; }
+    .tutorial-mult-focus { border-color:var(--accent) !important; box-shadow:0 0 0 3px rgba(37,99,235,.12) !important; }
+
+    @media (min-width: 700px) and (max-width: 1180px) {
+      html, body { height:100%; }
+      body { height:100dvh; overflow:hidden; padding:8px 10px; }
+      .page-title { margin-bottom:5px; }
+      .page-title h1 { font-size:21px; }
+      .page-title p { font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+      .mode-tabs { margin-bottom:6px; }
+      .mode-tabs button { min-height:31px; padding:5px 10px; }
+      .layout { max-height:calc(100dvh - 104px); }
+      .panel, .sidebar, .learning-panel { max-height:calc(100dvh - 104px); overflow:hidden; }
+      .tutorial-panel { max-height:calc(100dvh - 104px); overflow:hidden; }
+    }
+
+    @media (min-width: 700px) and (max-width: 850px) {
+      .layout { grid-template-columns:minmax(0,1.58fr) minmax(205px,.62fr); gap:8px; }
+      body[data-mode="learn"] .layout { grid-template-columns:minmax(0,1.5fr) minmax(220px,.7fr); }
+      .panel { padding:10px 11px; }
+      .sidebar, .learning-panel { padding:9px; }
+      .task-box { padding:7px 9px; font-size:12px; }
+      .editor { min-height:49px; font-size:18px; }
+      .preview-box { font-size:11px; }
+      body[data-mode="tutorial"] .layout { grid-template-columns:minmax(0,1.52fr) minmax(210px,.68fr); }
+      .tutorial-panel { padding:9px; }
+      .tutorial-guide { padding:8px; }
+      .tutorial-explanation, .tutorial-prompt { font-size:11px; }
+      .step-item { font-size:11px; margin:4px 0; }
+      .hint-block:last-child { display:none; }
+    }
+
+    @media (max-width: 699px) {
+      body { padding:10px; }
+      .layout, body[data-mode="learn"] .layout { grid-template-columns:1fr; }
+      .sidebar { position:static; }
+      body[data-mode="tutorial"] .layout { grid-template-columns:1fr; }
+      .tutorial-panel { position:static; }
+      .eq-row { grid-template-columns:1fr 90px; }
+    }
+
+  </style>
+</head>
+<body>
+  <div class="page-title">
+    <h1>Redox-Teilgleichungen üben</h1>
+    <p>
+      Formuliere zu jeder Aufgabe eine Oxidationsteilgleichung und eine Reduktionsteilgleichung.
+      Zusätzlich gibst du für beide Teilgleichungen einen Multiplikator an, damit in beiden Gleichungen
+      gleich viele Elektronen vorkommen.
+    </p>
+  </div>
+
+
+
+  <div class="mode-tabs" aria-label="Lernmodus auswählen">
+    <button id="modeTutorial" type="button" onclick="setMode('tutorial')">Tutorial</button>
+    <button id="modeLearn" type="button" onclick="setMode('learn')">Lernmodus</button>
+    <button id="modePractice" type="button" onclick="setMode('practice')">Üben</button>
+  </div>
+
+  <div id="exerciseLayout" class="layout">
+    <main class="panel">
+      <div class="task-box">
+        <div class="task-label">Aufgabe</div>
+        <div id="aufgabe"></div>
+      </div>
+
+      <h3>Oxidation</h3>
+      <div class="eq-row">
+        <div id="oxEditor" class="editor" contenteditable="true" data-placeholder="Oxidationsteilgleichung eingeben..."></div>
+        <div class="mult-wrap">
+          <label for="oxMult">Multiplikator</label>
+          <input id="oxMult" type="number" min="1" step="1" value="1" />
+        </div>
+      </div>
+      <div id="oxPreview" class="preview-box"><strong>Multiplizierte Gleichung:</strong> noch keine Eingabe.</div>
+
+      <h3>Reduktion</h3>
+      <div class="eq-row">
+        <div id="redEditor" class="editor" contenteditable="true" data-placeholder="Reduktionsteilgleichung eingeben..."></div>
+        <div class="mult-wrap">
+          <label for="redMult">Multiplikator</label>
+          <input id="redMult" type="number" min="1" step="1" value="1" />
+        </div>
+      </div>
+      <div id="redPreview" class="preview-box"><strong>Multiplizierte Gleichung:</strong> noch keine Eingabe.</div>
+
+      <div class="buttons">
+        <button class="primary" onclick="pruefen()">Prüfen</button>
+                <button onclick="neueAufgabe()">Neue Aufgabe</button>
+      </div>
+
+      <div id="feedback" class="feedback"></div>
+      <div id="solution" class="solution"></div>
+    </main>
+
+    <section id="tutorialPanel" class="tutorial-panel" hidden>
+      <div class="tutorial-head">
+        <div>
+          <h2>Geführtes Tutorial</h2>
+          <div class="tutorial-subtitle">Beispiel: Aluminium reagiert mit Chlor.</div>
+        </div>
+        <div id="tutorialProgressText" class="tutorial-progress-text">Schritt 1 von 7</div>
+      </div>
+      <div class="progress-track tutorial-track"><div id="tutorialProgressFill" class="progress-fill"></div></div>
+
+      <div class="tutorial-guide">
+        <div id="tutorialStepTag" class="tutorial-step-tag">Schritt 1</div>
+        <h3 id="tutorialTitle">Ausgangsteilchen eintragen</h3>
+        <div id="tutorialExplanation" class="tutorial-explanation"></div>
+        <div id="tutorialPrompt" class="tutorial-prompt"></div>
+        <div id="tutorialHint" class="tutorial-hint"></div>
+        <div id="tutorialFeedback" class="tutorial-feedback" aria-live="polite"></div>
+      </div>
+
+      <div class="tutorial-minihelp">
+        <strong>Eingabe</strong>
+        <span><code>-&gt;</code> erzeugt →</span>
+        <span>Zahlen hinter Elementsymbolen werden automatisch tiefgestellt.</span>
+        <span>Ladungen direkt anhängen, z. B. Symbol + Ladungszahl + Vorzeichen.</span>
+      </div>
+
+      <div class="tutorial-actions">
+        <button id="tutorialBack" type="button" onclick="changeTutorialStep(-1)">Zurück</button>
+        <button id="tutorialNext" class="primary" type="button" onclick="changeTutorialStep(1)" disabled>Weiter</button>
+        <button type="button" onclick="restartTutorial()">Neu starten</button>
+      </div>
+    </section>
+
+  <section id="learningPanel" class="learning-panel" hidden>
+    <div class="learning-head">
+      <div>
+        <h2 style="margin:0;">Lernmodus</h2>
+        <div style="color:var(--muted);margin-top:5px;">Bearbeite die aktuelle Aufgabe Schritt für Schritt.</div>
+      </div>
+      <div id="learningProgressText" class="learning-progress">Schritt 1 von 7</div>
+    </div>
+    <div class="progress-track"><div id="learningProgressFill" class="progress-fill"></div></div>
+
+    <div class="learning-content">
+      <div id="learningInstruction" class="learning-instruction"></div>
+      <div id="learningChargeCard" class="charge-card"></div>
+    </div>
+
+    <div class="learning-actions">
+      <button id="learnBack" type="button" onclick="changeLearningStep(-1)">Zurück</button>
+      <button id="learnNext" class="primary" type="button" onclick="changeLearningStep(1)">Weiter</button>
+    </div>
+  </section>
+
+
+    <aside class="sidebar">
+      <h2 class="hint-title">Hilfe zur Eingabe</h2>
+
+      <div class="hint-block">
+        <strong>Anleitung in 7 Schritten</strong>
+        <ul class="steps-list">
+          <li id="step1" class="step-item"><strong>Atomsymbole bestimmen:</strong></li>
+          <li id="step2" class="step-item"><strong>Zweiatomige Elemente prüfen:</strong><br>Gehört ein Stoff zu H, O, N, Cl, Br, I, F → als Molekül (z. B. O<sub>2</sub>).</li>
+          <li id="step3" class="step-item"><strong>Edukte aufschreiben:</strong><br>Beide Atome links vom Pfeil schreiben.</li>
+          <li id="step4" class="step-item"><strong>Ionen bestimmen:</strong><br>
+              Gibt Elektronen ab → <span id="kationMarker">☐</span> Kation.<br>
+              Nimmt Elektronen auf → <span id="anionMarker">☐</span> Anion.<br>
+              <em>Ladungszahl über Valenzelektronen bestimmen.</em>
+          </li>
+          <li id="step5" class="step-item"><strong>Teilgleichungen ausgleichen:</strong><br>Anzahl der Teilchen prüfen und anpassen.</li>
+          <li id="step6" class="step-item"><strong>Elektronen in passender Anzahl ergänzen:</strong><br>Aufnahme: e<sup>-</sup> links.<br>Abgabe: e<sup>-</sup> rechts.</li>
+          <li id="step7" class="step-item"><strong>Elektronenanzahl anpassen:</strong><br>Beide Teilgleichungen so oft nehmen, bis gleich viele Elektronen abgegeben und aufgenommen werden.</li>
+        </ul>
+      </div>
+
+      <div class="hint-block">
+        <div class="hint">
+          Zahlen werden je nach Position automatisch tief- oder hochgestellt.
+        </div>
+        <div style="margin-top: 10px;">
+          Bei Nebengruppenelementen gibt die Aufgabe zusätzlich an, welches Ion entstehen soll.
+        </div>
+        <div style="margin-top: 12px;">
+          Override für Ausnahmen: <code>/+</code> oder <code>/-</code><br>
+          Beispiel: <code>Mg2/+ -&gt; Mg</code> → Mg<sup>2+</sup> → Mg<br>
+          Reaktionspfeil: <code>-&gt;</code> → →
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    const aufgabe = document.getElementById("aufgabe");
+    const oxEditor = document.getElementById("oxEditor");
+    const redEditor = document.getElementById("redEditor");
+    const oxMultInput = document.getElementById("oxMult");
+    const redMultInput = document.getElementById("redMult");
+    const oxPreview = document.getElementById("oxPreview");
+    const redPreview = document.getElementById("redPreview");
+    const feedback = document.getElementById("feedback");
+    const solution = document.getElementById("solution");
+    const stepEls = Array.from({ length: 7 }, (_, i) => document.getElementById("step" + (i + 1)));
+    const kationMarker = document.getElementById("kationMarker");
+    const anionMarker = document.getElementById("anionMarker");
+
+    const tutorialPanel = document.getElementById("tutorialPanel");
+    const learningPanel = document.getElementById("learningPanel");
+    const exerciseLayout = document.getElementById("exerciseLayout");
+    const modeTutorialBtn = document.getElementById("modeTutorial");
+    const modeLearnBtn = document.getElementById("modeLearn");
+    const modePracticeBtn = document.getElementById("modePractice");
+    const learningInstruction = document.getElementById("learningInstruction");
+    const learningChargeCard = document.getElementById("learningChargeCard");
+    const learningProgressText = document.getElementById("learningProgressText");
+    const learningProgressFill = document.getElementById("learningProgressFill");
+    const learnBack = document.getElementById("learnBack");
+    const learnNext = document.getElementById("learnNext");
+    const tutorialProgressText = document.getElementById("tutorialProgressText");
+    const tutorialProgressFill = document.getElementById("tutorialProgressFill");
+    const tutorialStepTag = document.getElementById("tutorialStepTag");
+    const tutorialTitle = document.getElementById("tutorialTitle");
+    const tutorialExplanation = document.getElementById("tutorialExplanation");
+    const tutorialPrompt = document.getElementById("tutorialPrompt");
+    const tutorialFeedback = document.getElementById("tutorialFeedback");
+    const tutorialHint = document.getElementById("tutorialHint");
+    const tutorialBack = document.getElementById("tutorialBack");
+    const tutorialNext = document.getElementById("tutorialNext");
+
+    let appMode = "practice";
+    let learningStep = 1;
+    let tutorialStep = 1;
+    let tutorialStepSolved = false;
+    let tutorialFinalChecked = false;
+    let leavingTutorial = false;
+
+    const oxidationen = [
+      { name: "Lithium", electrons: 1, eq: "Li -> Li+ + e-", ionText: "Li+" },
+      { name: "Beryllium", electrons: 2, eq: "Be -> Be2+ + 2e-", ionText: "Be2+" },
+      { name: "Natrium", electrons: 1, eq: "Na -> Na+ + e-", ionText: "Na+" },
+      { name: "Magnesium", electrons: 2, eq: "Mg -> Mg2+ + 2e-", ionText: "Mg2+" },
+      { name: "Aluminium", electrons: 3, eq: "Al -> Al3+ + 3e-", ionText: "Al3+" },
+      { name: "Kalium", electrons: 1, eq: "K -> K+ + e-", ionText: "K+" },
+      { name: "Calcium", electrons: 2, eq: "Ca -> Ca2+ + 2e-", ionText: "Ca2+" },
+      { name: "Kupfer", electrons: 1, eq: "Cu -> Cu+ + e-", ionText: "Cu+", hintIon: "Cu+" },
+      { name: "Kupfer", electrons: 2, eq: "Cu -> Cu2+ + 2e-", ionText: "Cu2+", hintIon: "Cu2+" },
+      { name: "Eisen", electrons: 2, eq: "Fe -> Fe2+ + 2e-", ionText: "Fe2+", hintIon: "Fe2+" },
+      { name: "Eisen", electrons: 3, eq: "Fe -> Fe3+ + 3e-", ionText: "Fe3+", hintIon: "Fe3+" }
+    ];
+
+    const reduktionen = [
+      { name: "Sauerstoff", electrons: 4, eq: "O2 + 4e- -> 2O2-" },
+      { name: "Fluor", electrons: 2, eq: "F2 + 2e- -> 2F-" },
+      { name: "Chlor", electrons: 2, eq: "Cl2 + 2e- -> 2Cl-" },
+      { name: "Brom", electrons: 2, eq: "Br2 + 2e- -> 2Br-" },
+      { name: "Iod", electrons: 2, eq: "I2 + 2e- -> 2I-" }
+    ];
+
+    let aktuelleAufgabe = null;
+
+    function escapeHtml(text) {
+      return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+    }
+
+    function isDigit(c) {
+      return /\d/.test(c || "");
+    }
+
+    function isLetter(c) {
+      return /[A-Za-zÄÖÜäöü]/.test(c || "");
+    }
+
+    function isOpeningBracket(c) {
+      return c === "(" || c === "[" || c === "{";
+    }
+
+    function isClosingBracket(c) {
+      return c === ")" || c === "]" || c === "}";
+    }
+
+    function isSubscriptTrigger(c) {
+      return isLetter(c) || isOpeningBracket(c) || isClosingBracket(c);
+    }
+
+    function getCaretCharacterOffsetWithin(element) {
+      const selection = window.getSelection();
+      if (!selection.rangeCount) return 0;
+
+      const range = selection.getRangeAt(0);
+      const preRange = range.cloneRange();
+      preRange.selectNodeContents(element);
+      preRange.setEnd(range.endContainer, range.endOffset);
+
+      return preRange.toString().length;
+    }
+
+    function setCaretByCharacterOffset(element, offset) {
+      const selection = window.getSelection();
+      const range = document.createRange();
+
+      let currentOffset = 0;
+      let found = false;
+
+      function walk(node) {
+        if (found) return;
+
+        if (node.nodeType === Node.TEXT_NODE) {
+          const nextOffset = currentOffset + node.textContent.length;
+          if (offset <= nextOffset) {
+            range.setStart(node, Math.max(0, offset - currentOffset));
+            range.collapse(true);
+            found = true;
+          }
+          currentOffset = nextOffset;
+        } else {
+          for (const child of node.childNodes) {
+            walk(child);
+            if (found) return;
+          }
+        }
+      }
+
+      walk(element);
+
+      if (!found) {
+        range.selectNodeContents(element);
+        range.collapse(false);
+      }
+
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+
+    function formatNumber(number, prevChar, applyCharge, chargeSign, override) {
+      const isSub = isSubscriptTrigger(prevChar);
+
+      if (!applyCharge || override) {
+        let base = isSub ? `<sub>${escapeHtml(number)}</sub>` : escapeHtml(number);
+        if (override && chargeSign) {
+          return base + `<sup>${escapeHtml(chargeSign)}</sup>`;
+        }
+        return base;
+      }
+
+      if (number.length === 1) {
+        return `<sup>${escapeHtml(number + chargeSign)}</sup>`;
+      }
+
+      const first = number.slice(0, -1);
+      const last = number.slice(-1);
+      const firstFormatted = isSub ? `<sub>${escapeHtml(first)}</sub>` : escapeHtml(first);
+      return firstFormatted + `<sup>${escapeHtml(last + chargeSign)}</sup>`;
+    }
+
+    function formatText(text) {
+      let result = "";
+      let i = 0;
+
+      while (i < text.length) {
+        const ch = text[i];
+
+        if (ch === "-" && text[i + 1] === ">") {
+          result += "→";
+          i += 2;
+          continue;
+        }
+
+        if (isDigit(ch)) {
+          let j = i;
+          while (j < text.length && isDigit(text[j])) j++;
+
+          const number = text.slice(i, j);
+          const prevChar = i > 0 ? text[i - 1] : "";
+          const nextChar = text[j];
+          const nextNextChar = text[j + 1];
+
+          if (nextChar === "/" && (nextNextChar === "+" || nextNextChar === "-")) {
+            result += formatNumber(number, prevChar, false, nextNextChar, true);
+            i = j + 2;
+            continue;
+          }
+
+          // Only interpret trailing +/- as charge when the sign is attached
+          // to the same token. If there is whitespace before the number, it is
+          // part of a new term such as + 3e- or +3e-, not a charge.
+          if (
+            (nextChar === "+" || nextChar === "-") &&
+            prevChar &&
+            !/\s/.test(prevChar)
+          ) {
+            result += formatNumber(number, prevChar, true, nextChar, false);
+            i = j + 1;
+            continue;
+          }
+
+          result += formatNumber(number, prevChar, false, "", false);
+          i = j;
+          continue;
+        }
+
+        if (ch === "+" || ch === "-") {
+          const prevChar = text[i - 1];
+          const nextChar = text[i + 1];
+
+          // A sign becomes superscript only when it is directly attached to the
+          // previous token. If there is whitespace before it, it stays an operator.
+          if (prevChar && !/\s/.test(prevChar) && nextChar !== ">") {
+            result += `<sup>${escapeHtml(ch)}</sup>`;
+          } else {
+            result += escapeHtml(ch);
+          }
+          i++;
+          continue;
+        }
+
+        if (ch === "/" && (text[i + 1] === "+" || text[i + 1] === "-")) {
+          i++;
+          continue;
+        }
+
+        result += escapeHtml(ch);
+        i++;
+      }
+
+      return result;
+    }
+
+    function updateFormatting(editor) {
+      const caretPos = getCaretCharacterOffsetWithin(editor);
+      const plainText = editor.innerText.replace(/\r/g, "");
+      editor.innerHTML = formatText(plainText);
+      setCaretByCharacterOffset(editor, caretPos);
+      updatePreviews();
+      updateStepChecklist();
+    }
+
+    function attachFormatting(editor) {
+      editor.addEventListener("input", () => {
+        updateFormatting(editor);
+        if (appMode === "tutorial") updateTutorialState(false);
+      });
+      editor.addEventListener("paste", (e) => {
+        e.preventDefault();
+        const text = (e.clipboardData || window.clipboardData).getData("text");
+        document.execCommand("insertText", false, text);
+      });
+    }
+
+    function normalizedInputFromEditor(editor) {
+      return editor.innerText
+        .replace(/\u2192/g, "->")
+        .replace(/\s+/g, "")
+        .trim();
+    }
+
+    function normalizedEquation(text) {
+      return text.replace(/\s+/g, "").trim();
+    }
+    function removeElectronTermsFromSide(side) {
+      return splitSideIntoTerms(side)
+        .filter(term => !/^\d*e-$/.test(term.replace(/\s+/g, "")));
+    }
+
+    function normalizeTermsForComparison(terms) {
+      return terms
+        .map(term => term.replace(/\s+/g, ""))
+        .sort()
+        .join("|");
+    }
+
+    function isBalancedIgnoringElectrons(eqText, solutionText) {
+      const userParts = (eqText || "").replace(/→/g, "->").split(/\s*->\s*/);
+      const solParts = (solutionText || "").split(/\s*->\s*/);
+
+      if (userParts.length !== 2 || solParts.length !== 2) return false;
+
+      const userLeft = normalizeTermsForComparison(removeElectronTermsFromSide(userParts[0]));
+      const userRight = normalizeTermsForComparison(removeElectronTermsFromSide(userParts[1]));
+      const solLeft = normalizeTermsForComparison(removeElectronTermsFromSide(solParts[0]));
+      const solRight = normalizeTermsForComparison(removeElectronTermsFromSide(solParts[1]));
+
+      return userLeft === solLeft && userRight === solRight;
+    }
+
+    function renderEquation(text) {
+      return formatText(text);
+    }
+
+    function zufallAus(array) {
+      return array[Math.floor(Math.random() * array.length)];
+    }
+
+    function kgV(a, b) {
+      const ggt = (x, y) => y === 0 ? x : ggt(y, x % y);
+      return Math.abs(a * b) / ggt(a, b);
+    }
+
+    function parseMultiplier(input) {
+      const value = parseInt(input.value, 10);
+      return (!Number.isFinite(value) || value < 1) ? 1 : value;
+    }
+
+    function multiplyTerm(term, factor) {
+      if (!term) return term;
+
+      const compact = term.replace(/\s+/g, "");
+
+      const electronMatch = compact.match(/^(\d+)?e-$/);
+      if (electronMatch) {
+        const coeff = electronMatch[1] ? parseInt(electronMatch[1], 10) : 1;
+        const newCoeff = coeff * factor;
+        return newCoeff === 1 ? "e-" : String(newCoeff) + "e-";
+      }
+
+      const particleMatch = compact.match(/^(\d+)?([A-Z][a-z]?\d*[+-]?)$/);
+      if (particleMatch) {
+        const coeff = particleMatch[1] ? parseInt(particleMatch[1], 10) : 1;
+        const rest = particleMatch[2];
+        const newCoeff = coeff * factor;
+        return newCoeff === 1 ? rest : String(newCoeff) + rest;
+      }
+
+      const match = term.match(/^(\d+)?\s*(.*)$/);
+      if (!match) return term;
+
+      const coeff = match[1] ? parseInt(match[1], 10) : 1;
+      const rest = (match[2] || "").trim();
+      if (!rest) return String(coeff * factor);
+
+      const newCoeff = coeff * factor;
+      return newCoeff === 1 ? rest : String(newCoeff) + rest;
+    }
+
+    function splitSideIntoTerms(side) {
+      const terms = [];
+      let current = "";
+
+      for (let i = 0; i < side.length; i++) {
+        const ch = side[i];
+
+        if (ch === "+") {
+          const prevChar = i > 0 ? side[i - 1] : "";
+          const nextChar = i + 1 < side.length ? side[i + 1] : "";
+
+          const isChargePlus =
+            prevChar &&
+            !/\s/.test(prevChar) &&
+            prevChar !== "+" &&
+            prevChar !== "-";
+
+          if (isChargePlus) {
+            current += ch;
+          } else {
+            if (current.trim()) {
+              terms.push(current.trim());
+            }
+            current = "";
+          }
+          continue;
+        }
+
+        current += ch;
+      }
+
+      if (current.trim()) {
+        terms.push(current.trim());
+      }
+
+      return terms;
+    }
+
+    function multiplyEquationCoefficients(eq, factor) {
+      const trimmed = (eq || "").trim();
+      if (!trimmed) return "";
+
+      const parts = trimmed.split(/\s*->\s*/);
+      if (parts.length !== 2) return trimmed;
+
+      const multiplySide = (side) => {
+        const terms = splitSideIntoTerms(side);
+        return terms.map(term => multiplyTerm(term, factor)).join(" + ");
+      };
+
+      return multiplySide(parts[0]) + " -> " + multiplySide(parts[1]);
+    }
+
+
+    function splitTerms(side) {
+      return side
+        .split(/\s+\+\s+/)
+        .map(term => term.trim())
+        .filter(Boolean);
+    }
+
+    function isElectronTerm(term) {
+      return /^\d*e-$/.test(term.replace(/\s+/g, ""));
+    }
+
+    function formatCoefficientOne(term) {
+      return term.replace(/^1(?=[A-Z(])/, "");
+    }
+
+    function buildOverallEquation() {
+      if (!aktuelleAufgabe) return "";
+
+      const lcm = kgV(aktuelleAufgabe.ox.electrons, aktuelleAufgabe.red.electrons);
+      const oxMult = lcm / aktuelleAufgabe.ox.electrons;
+      const redMult = lcm / aktuelleAufgabe.red.electrons;
+
+      const oxScaled = multiplyEquationCoefficients(aktuelleAufgabe.ox.eq, oxMult);
+      const redScaled = multiplyEquationCoefficients(aktuelleAufgabe.red.eq, redMult);
+
+      const [oxLeft, oxRight] = oxScaled.split(/\s*->\s*/);
+      const [redLeft, redRight] = redScaled.split(/\s*->\s*/);
+
+      const leftTerms = [...splitTerms(oxLeft), ...splitTerms(redLeft)]
+        .filter(term => !isElectronTerm(term))
+        .map(formatCoefficientOne);
+
+      const rightTerms = [...splitTerms(oxRight), ...splitTerms(redRight)]
+        .filter(term => !isElectronTerm(term))
+        .map(formatCoefficientOne);
+
+      return leftTerms.join(" + ") + " -> " + rightTerms.join(" + ");
+    }
+
+    function updatePreviews() {
+      const oxInput = oxEditor.innerText.replace(/\u2192/g, "->").replace(/\s+/g, " ").trim();
+      const redInput = redEditor.innerText.replace(/\u2192/g, "->").replace(/\s+/g, " ").trim();
+      const oxMult = parseMultiplier(oxMultInput);
+      const redMult = parseMultiplier(redMultInput);
+      const oxMultTyped = oxMultInput.value.trim();
+      const redMultTyped = redMultInput.value.trim();
+
+      oxPreview.innerHTML = oxInput
+        ? "<strong>Multiplizierte Gleichung:</strong> " + renderEquation(multiplyEquationCoefficients(oxInput, oxMult))
+        : "<strong>Multiplizierte Gleichung:</strong> noch keine Eingabe.";
+
+      redPreview.innerHTML = redInput
+        ? "<strong>Multiplizierte Gleichung:</strong> " + renderEquation(multiplyEquationCoefficients(redInput, redMult))
+        : "<strong>Multiplizierte Gleichung:</strong> noch keine Eingabe.";
+
+      if (appMode === "learn" && learningStep === 6 && learningChargeCard) {
+        learningChargeCard.innerHTML = learningElectronStatus();
+      }
+    }
+
+
+    function setStepDone(stepNumber, done) {
+      const el = stepEls[stepNumber - 1];
+      if (!el) return;
+      el.classList.toggle("done", !!done);
+    }
+
+    function setInlineMarker(element, done) {
+      if (!element) return;
+      element.textContent = done ? "☑" : "☐";
+      element.style.color = done ? "var(--ok)" : "#64748b";
+      element.style.fontWeight = "bold";
+    }
+
+    function parseIonFromSide(side) {
+      const text = (side || "").trim();
+      const terms = splitSideIntoTerms(text);
+
+      for (const term of terms) {
+        const compact = term.replace(/\s+/g, "");
+        if (/^(\d+)?e-$/.test(compact)) continue;
+
+        const match = compact.match(/^(\d+)?([A-Z][a-z]?)(\d*)([+-])$/);
+        if (match) {
+          const particleCoeff = match[1] ? parseInt(match[1], 10) : 1;
+          const element = match[2];
+          const chargeDigits = match[3];
+          const chargeNumber = chargeDigits ? parseInt(chargeDigits, 10) : 1;
+          const chargeSign = match[4];
+          return { particleCoeff, element, chargeNumber, chargeSign, raw: term };
+        }
+      }
+      return null;
+    }
+
+    function expectedIonData(isOxidation) {
+      if (!aktuelleAufgabe) return null;
+
+      const eq = isOxidation ? aktuelleAufgabe.ox.eq : aktuelleAufgabe.red.eq;
+      const parts = eq.split(/\s*->\s*/);
+      if (parts.length !== 2) return null;
+
+      const productSide = parts[1];
+      const terms = splitSideIntoTerms(productSide);
+
+      for (const term of terms) {
+        const compact = term.replace(/\s+/g, "");
+        if (/^(\d+)?e-$/.test(compact)) continue;
+
+        const match = compact.match(/^(\d+)?([A-Z][a-z]?)(\d*)([+-])$/);
+        if (match) {
+          return {
+            element: match[2],
+            chargeNumber: match[3] ? parseInt(match[3], 10) : 1,
+            chargeSign: match[4]
+          };
+        }
+      }
+      return null;
+    }
+
+    function ionSignCorrect(eqData, isOxidation) {
+      if (!eqData.validArrow) return false;
+      const ion = parseIonFromSide(eqData.right);
+      const expected = expectedIonData(isOxidation);
+      if (!ion || !expected) return false;
+      return ion.chargeSign === expected.chargeSign && ion.element === expected.element;
+    }
+
+    function ionChargeNumberCorrect(eqData, isOxidation) {
+      if (!eqData.validArrow) return false;
+      const ion = parseIonFromSide(eqData.right);
+      const expected = expectedIonData(isOxidation);
+      if (!ion || !expected) return false;
+      return ion.chargeNumber === expected.chargeNumber && ion.element === expected.element;
+    }
+
+    function countOccurrences(text, pattern) {
+      const matches = text.match(pattern);
+      return matches ? matches.length : 0;
+    }
+
+    function getEquationData(editorText) {
+      const text = (editorText || "").replace(/→/g, "->").trim();
+      const parts = text.split(/\s*->\s*/);
+      if (parts.length !== 2) {
+        return { raw: text, validArrow: false, left: "", right: "" };
+      }
+      return {
+        raw: text,
+        validArrow: true,
+        left: parts[0].trim(),
+        right: parts[1].trim()
+      };
+    }
+
+    function hasRelevantContent(text) {
+      return /[A-Za-z]/.test(text || "");
+    }
+
+    function checkFormulaPresence(side) {
+      return /[A-Z][a-z]?\d*/.test(side || "");
+    }
+
+    function isDiatomicName(name) {
+      return ["Sauerstoff", "Fluor", "Chlor", "Brom", "Iod"].includes(name);
+    }
+
+    function expectedDiatomicFormula(name) {
+      const map = {
+        "Sauerstoff": "O2",
+        "Fluor": "F2",
+        "Chlor": "Cl2",
+        "Brom": "Br2",
+        "Iod": "I2"
+      };
+      return map[name] || "";
+    }
+
+    function checkDiatomicRequirement(eqData, expectedName) {
+      const expected = expectedDiatomicFormula(expectedName);
+      if (!expected) return true;
+      return eqData.left.includes(expected);
+    }
+
+    function checkIonPresence(eqData, isOxidation) {
+      if (!eqData.validArrow) return false;
+      if (isOxidation) {
+        return /[A-Z][a-z]?\d*[+-]/.test(eqData.right);
+      }
+      return /[A-Z][a-z]?\d*[+-]/.test(eqData.right);
+    }
+
+    function electronCountFromEquation(eqData, isOxidation) {
+      if (!eqData.validArrow) return 0;
+      const side = isOxidation ? eqData.right : eqData.left;
+      const terms = splitSideIntoTerms(side);
+
+      for (const term of terms) {
+        const compact = term.replace(/\s+/g, "");
+        const match = compact.match(/^(\d+)?e-$/);
+        if (match) {
+          return match[1] ? parseInt(match[1], 10) : 1;
+        }
+      }
+      return 0;
+    }
+
+    function electronPlacementOk(eqData, isOxidation) {
+      if (!eqData.validArrow) return false;
+      const leftHas = /(?:^|\s|\+)\d*e-/.test(eqData.left);
+      const rightHas = /(?:^|\s|\+)\d*e-/.test(eqData.right);
+      return isOxidation ? (!leftHas && rightHas) : (leftHas && !rightHas);
+    }
+
+    function correctElectronCountForReaction(eqData, isOxidation) {
+      if (!aktuelleAufgabe) return false;
+      const expected = isOxidation ? aktuelleAufgabe.ox.electrons : aktuelleAufgabe.red.electrons;
+      const actual = electronCountFromEquation(eqData, isOxidation);
+      return actual === expected;
+    }
+
+    function hasParticleCoefficient(eqData) {
+      if (!eqData.validArrow) return false;
+      const combined = eqData.left + " + " + eqData.right;
+      return /(?:^|\s|\+)\d+[A-Z]/.test(combined);
+    }
+
+    function updateStepChecklist() {
+      const oxData = getEquationData(oxEditor.innerText);
+      const redData = getEquationData(redEditor.innerText);
+      const oxText = oxEditor.innerText.trim();
+      const redText = redEditor.innerText.trim();
+
+      const step1 = hasRelevantContent(oxText) && hasRelevantContent(redText);
+      const step2 = checkDiatomicRequirement(redData, aktuelleAufgabe ? aktuelleAufgabe.red.name : "");
+      const step3 = oxData.validArrow && redData.validArrow && checkFormulaPresence(oxData.left) && checkFormulaPresence(redData.left);
+
+      const step4a = ionSignCorrect(oxData, true);
+      const step4b = ionChargeNumberCorrect(oxData, true);
+      const step4c = ionSignCorrect(redData, false);
+      const step4d = ionChargeNumberCorrect(redData, false);
+      const kationOk = step4a && step4b;
+      const anionOk = step4c && step4d;
+      const step4 = kationOk && anionOk;
+
+      const step5 =
+        oxData.validArrow &&
+        redData.validArrow &&
+        isBalancedIgnoringElectrons(oxEditor.innerText, aktuelleAufgabe?.ox.eq || "") &&
+        isBalancedIgnoringElectrons(redEditor.innerText, aktuelleAufgabe?.red.eq || "");
+
+      const oxStep6Ok =
+        oxData.validArrow &&
+        electronPlacementOk(oxData, true) &&
+        correctElectronCountForReaction(oxData, true);
+
+      const redStep6Ok =
+        redData.validArrow &&
+        electronPlacementOk(redData, false) &&
+        correctElectronCountForReaction(redData, false);
+
+      const step6 = oxStep6Ok && redStep6Ok;
+
+      const oxMult = parseMultiplier(oxMultInput);
+      const redMult = parseMultiplier(redMultInput);
+
+      const oxBaseElectrons = aktuelleAufgabe ? aktuelleAufgabe.ox.electrons : 0;
+      const redBaseElectrons = aktuelleAufgabe ? aktuelleAufgabe.red.electrons : 0;
+
+      const oxElectrons = oxBaseElectrons * oxMult;
+      const redElectrons = redBaseElectrons * redMult;
+
+      const step7 =
+        step1 &&
+        step2 &&
+        step3 &&
+        step4 &&
+        step5 &&
+        step6 &&
+        oxMult >= 1 &&
+        redMult >= 1 &&
+        oxElectrons > 0 &&
+        redElectrons > 0 &&
+        oxElectrons === redElectrons;
+
+      [step1, step2, step3, step4, step5, step6, step7].forEach((done, index) => {
+        setStepDone(index + 1, done);
+      });
+
+      setInlineMarker(kationMarker, kationOk);
+      setInlineMarker(anionMarker, anionOk);
+    }
+
+    const tutorialSteps = [
+      {
+        title: "Ausgangsteilchen eintragen",
+        explanation: "<p>Beginne direkt in den beiden Teilgleichungen. Links vom Pfeil stehen die Teilchen, die Elektronen abgeben bzw. aufnehmen.</p>",
+        prompt: "Trage in beiden Feldern zunächst nur das jeweilige Ausgangsteilchen und den Reaktionspfeil ein.",
+        hint: "Aluminium wird als einzelnes Atom geschrieben. Chlor kommt elementar als zweiatomiges Molekül vor. Den Pfeil erzeugst du mit ->."
+      },
+      {
+        title: "Ionenladung bei der Oxidation bestimmen",
+        explanation: "<p>Aluminium steht in der 3. Hauptgruppe und besitzt drei Valenzelektronen. Bei einer Oxidation werden Elektronen abgegeben.</p>",
+        prompt: "Ergänze im Oxidationsfeld hinter dem Pfeil nur das entstehende Aluminium-Ion. Noch keine Elektronen eintragen.",
+        hint: "Überlege: Ein neutrales Aluminium-Atom gibt drei negativ geladene Elektronen ab. Welche positive Ladung bleibt dann zurück?"
+      },
+      {
+        title: "Elektronen der Oxidation ergänzen",
+        explanation: "<p>Oxidation bedeutet Elektronenabgabe. Die abgegebenen Elektronen stehen deshalb rechts vom Pfeil.</p>",
+        prompt: "Vervollständige die Oxidationsteilgleichung mit den abgegebenen Elektronen.",
+        hint: "Die Zahl der abgegebenen Elektronen entspricht der positiven Ladung des entstandenen Ions. Prüfe danach: Gesamtladung links = Gesamtladung rechts."
+      },
+      {
+        title: "Ionen und Teilchenzahl bei der Reduktion bestimmen",
+        explanation: "<p>Chlor steht in der 7. Hauptgruppe. Ein Chlor-Atom nimmt ein Elektron auf und wird dadurch einfach negativ geladen.</p>",
+        prompt: "Ergänze im Reduktionsfeld rechts vom Pfeil die entstehenden Chlorid-Ionen. Noch keine Elektronen eintragen.",
+        hint: "Cl₂ enthält zwei Chlor-Atome. Deshalb müssen rechts ebenfalls zwei Chlor-Teilchen stehen. Bestimme zusätzlich die Ladung eines einzelnen Chlorid-Ions."
+      },
+      {
+        title: "Elektronen der Reduktion ergänzen",
+        explanation: "<p>Reduktion bedeutet Elektronenaufnahme. Die Elektronen stehen deshalb links vom Pfeil.</p>",
+        prompt: "Vervollständige die Reduktionsteilgleichung mit der passenden Zahl an Elektronen.",
+        hint: "Jedes der beiden Chlor-Atome nimmt ein Elektron auf. Wie viele Elektronen werden insgesamt benötigt? Prüfe danach wieder die Gesamtladung."
+      },
+      {
+        title: "Elektronenzahlen gleich machen",
+        explanation: "<p>Jetzt stehen in den beiden Teilgleichungen unterschiedlich viele Elektronen. Beim Addieren müssen aber genauso viele Elektronen abgegeben wie aufgenommen werden.</p><div class=\"electron-simple\"><strong>So findest du die gemeinsame Elektronenzahl:</strong><br>Oxidation: 3, 6, 9, …<br>Reduktion: 2, 4, 6, …<br><strong>Die erste Zahl, die in beiden Reihen vorkommt, ist 6.</strong></div><p>Stelle nun die Multiplikatoren so ein, dass beide Teilgleichungen jeweils 6 Elektronen enthalten.</p>",
+        prompt: "Verändere die beiden Multiplikatoren. Beobachte dabei die multiplizierten Gleichungen unter den Eingabefeldern.",
+        hint: "Frage dich getrennt: Wie oft muss ich 3 Elektronen nehmen, um auf 6 zu kommen? Wie oft muss ich 2 Elektronen nehmen, um auf 6 zu kommen? Diese erste gemeinsame Zahl nennt man später das kleinste gemeinsame Vielfache (kgV)."
+      },
+      {
+        title: "Gesamte Lösung prüfen",
+        explanation: "<p>Beide Teilgleichungen enthalten jetzt gleich viele Elektronen. Beim Addieren können diese Elektronen vollständig gestrichen werden.</p>",
+        prompt: "Kontrolliere noch einmal beide Teilgleichungen und drücke anschließend auf „Prüfen“.",
+        hint: "Endkontrolle: gleiche Atomanzahl auf beiden Seiten jeder Teilgleichung, gleiche Gesamtladung und nach den Multiplikatoren gleich viele abgegebene wie aufgenommene Elektronen."
+      }
+    ];
+
+    function tutorialNormEditor(editor) {
+      return normalizedInputFromEditor(editor);
+    }
+
+    function tutorialStepIsSolved() {
+      const ox = tutorialNormEditor(oxEditor);
+      const red = tutorialNormEditor(redEditor);
+      const oxMult = parseMultiplier(oxMultInput);
+      const redMult = parseMultiplier(redMultInput);
+      const oxMultTyped = oxMultInput.value.trim();
+      const redMultTyped = redMultInput.value.trim();
+
+      if (tutorialStep === 1) {
+        const oxAllowed = ["Al->", "Al->Al3+", "Al->Al3++3e-"];
+        const redAllowed = ["Cl2->", "Cl2->2Cl-", "Cl2+2e-->2Cl-"];
+        return oxAllowed.includes(ox) && redAllowed.includes(red);
+      }
+      if (tutorialStep === 2) {
+        return ox === "Al->Al3+" || ox === "Al->Al3++3e-";
+      }
+      if (tutorialStep === 3) {
+        return ox === "Al->Al3++3e-";
+      }
+      if (tutorialStep === 4) {
+        const data = getEquationData(redEditor.innerText);
+        return data.validArrow && data.left.replace(/\s+/g, "").startsWith("Cl2") && data.right.replace(/\s+/g, "") === "2Cl-";
+      }
+      if (tutorialStep === 5) {
+        return red === "Cl2+2e-->2Cl-";
+      }
+      if (tutorialStep === 6) {
+        return ox === "Al->Al3++3e-" && red === "Cl2+2e-->2Cl-" &&
+          oxMult === 2 && redMult === 3 && oxMultTyped === "2" && redMultTyped === "3";
+      }
+      return tutorialFinalChecked;
+    }
+
+    function clearTutorialFocus() {
+      oxEditor.classList.remove("tutorial-focus", "tutorial-muted");
+      redEditor.classList.remove("tutorial-focus", "tutorial-muted");
+      oxMultInput.classList.remove("tutorial-mult-focus");
+      redMultInput.classList.remove("tutorial-mult-focus");
+    }
+
+    function applyTutorialFocus() {
+      clearTutorialFocus();
+      if (tutorialStep === 1) {
+        oxEditor.classList.add("tutorial-focus");
+        redEditor.classList.add("tutorial-focus");
+      } else if (tutorialStep === 2 || tutorialStep === 3) {
+        oxEditor.classList.add("tutorial-focus");
+        redEditor.classList.add("tutorial-muted");
+      } else if (tutorialStep === 4 || tutorialStep === 5) {
+        redEditor.classList.add("tutorial-focus");
+        oxEditor.classList.add("tutorial-muted");
+      } else if (tutorialStep === 6) {
+        oxMultInput.classList.add("tutorial-mult-focus");
+        redMultInput.classList.add("tutorial-mult-focus");
+      }
+    }
+
+    function updateTutorialState(showWrongFeedback = false) {
+      if (appMode !== "tutorial") return;
+      tutorialStepSolved = tutorialStepIsSolved();
+      tutorialNext.disabled = !tutorialStepSolved;
+
+      if (tutorialStep === 6) {
+        const oxRaw = oxMultInput.value.trim();
+        const redRaw = redMultInput.value.trim();
+        const oxM = oxRaw ? parseMultiplier(oxMultInput) : null;
+        const redM = redRaw ? parseMultiplier(redMultInput) : null;
+        const oxCount = oxM ? 3 * oxM : null;
+        const redCount = redM ? 2 * redM : null;
+        const oxText = oxM ? "3 · " + oxM + " = " + oxCount + " e⁻" : "3 · ? = ? e⁻";
+        const redText = redM ? "2 · " + redM + " = " + redCount + " e⁻" : "2 · ? = ? e⁻";
+        tutorialFeedback.className = "tutorial-feedback " + (tutorialStepSolved ? "ok" : "");
+        tutorialFeedback.innerHTML = "<strong>Aktuell:</strong> Oxidation: " + oxText + " &nbsp;|&nbsp; Reduktion: " + redText +
+          (tutorialStepSolved ? "<br><strong>Beide enthalten 6 Elektronen.</strong> Du kannst weitergehen." : "<br>Verändere die Multiplikatoren, bis beide Ergebnisse gleich sind.");
+        return;
+      }
+
+      if (tutorialStepSolved) {
+        tutorialFeedback.className = "tutorial-feedback ok";
+        tutorialFeedback.textContent = tutorialStep === 7 ? "Prüfung erfolgreich. Die Elektronen gleichen sich aus." : "Schritt erfüllt. Du kannst weitergehen.";
+      } else if (showWrongFeedback) {
+        tutorialFeedback.className = "tutorial-feedback warn";
+        tutorialFeedback.textContent = "Noch nicht vollständig. Nutze den Hinweis und leite die fehlende Angabe selbst her.";
+      } else {
+        tutorialFeedback.className = "tutorial-feedback";
+        tutorialFeedback.textContent = "";
+      }
+    }
+
+    function renderTutorialStep() {
+      const step = tutorialSteps[tutorialStep - 1];
+      tutorialProgressText.textContent = "Schritt " + tutorialStep + " von " + tutorialSteps.length;
+      tutorialProgressFill.style.width = ((tutorialStep / tutorialSteps.length) * 100) + "%";
+      tutorialStepTag.textContent = "Schritt " + tutorialStep;
+      tutorialTitle.textContent = step.title;
+      tutorialExplanation.innerHTML = step.explanation;
+      tutorialPrompt.textContent = step.prompt;
+      tutorialHint.innerHTML = "<strong>Hinweis:</strong> " + step.hint;
+      tutorialBack.disabled = tutorialStep === 1;
+      tutorialNext.textContent = tutorialStep === tutorialSteps.length ? "Tutorial beenden" : "Weiter";
+      applyTutorialFocus();
+      updateTutorialState(false);
+
+      setTimeout(() => {
+        if (tutorialStep <= 3) oxEditor.focus();
+        else if (tutorialStep <= 5) redEditor.focus();
+        else if (tutorialStep === 6) oxMultInput.focus();
+      }, 0);
+    }
+
+    function changeTutorialStep(delta) {
+      if (delta > 0 && !tutorialStepIsSolved()) {
+        updateTutorialState(true);
+        return;
+      }
+      if (delta > 0 && tutorialStep === tutorialSteps.length) {
+        localStorage.setItem("redoxTutorialSeen", "1");
+        setMode("learn");
+        return;
+      }
+      tutorialStep = Math.max(1, Math.min(tutorialSteps.length, tutorialStep + delta));
+      renderTutorialStep();
+    }
+
+    function setupTutorialExample() {
+      const ox = oxidationen.find(x => x.name === "Aluminium" && x.electrons === 3);
+      const red = reduktionen.find(x => x.name === "Chlor");
+      aktuelleAufgabe = { ox, red };
+      aufgabe.innerHTML = "Formuliere die Oxidation von <strong>Aluminium</strong> sowie die Reduktion von <strong>Chlor</strong>.";
+      oxEditor.innerHTML = "";
+      redEditor.innerHTML = "";
+      oxMultInput.value = "";
+      redMultInput.value = "";
+      oxPreview.innerHTML = "<strong>Multiplizierte Gleichung:</strong> noch keine Eingabe.";
+      redPreview.innerHTML = "<strong>Multiplizierte Gleichung:</strong> noch keine Eingabe.";
+      tutorialFinalChecked = false;
+      resetOutputs();
+      updateStepChecklist();
+    }
+
+    function restartTutorial() {
+      tutorialStep = 1;
+      setupTutorialExample();
+      renderTutorialStep();
+    }
+
+    function getOxGuidance() {
+      if (!aktuelleAufgabe) return "";
+      return (
+        "<h3>Leitfragen</h3>" +
+        "1. In welcher Hauptgruppe steht das Metall?<br>" +
+        "2. Wie viele Valenzelektronen besitzt es damit?<br>" +
+        "3. Gibt es diese Elektronen ab oder nimmt es welche auf?<br>" +
+        "4. Für jedes abgegebene Elektron wird das Ion um <strong>+1</strong> positiver."
+      );
+    }
+
+    function getRedGuidance() {
+      if (!aktuelleAufgabe) return "";
+      return (
+        "<h3>Leitfragen</h3>" +
+        "1. In welcher Hauptgruppe steht das Nichtmetall?<br>" +
+        "2. Wie viele Elektronen fehlen bis zu 8 Valenzelektronen?<br>" +
+        "3. Für jedes aufgenommene Elektron wird das Ion um <strong>−1</strong> negativer.<br>" +
+        "4. Kommt das Element elementar zweiatomig vor? Dann reagieren zwei Atome, die Ladung <em>eines</em> Ions bleibt aber gleich."
+      );
+    }
+
+    function learningElectronStatus() {
+      const oxData = getEquationData(oxEditor.innerText);
+      const redData = getEquationData(redEditor.innerText);
+      const oxCount = electronCountFromEquation(oxData, true);
+      const redCount = electronCountFromEquation(redData, false);
+      const oxMult = parseMultiplier(oxMultInput);
+      const redMult = parseMultiplier(redMultInput);
+
+      const oxText = oxCount > 0
+        ? (oxCount + " e<sup>−</sup> × " + oxMult + " = <strong>" + (oxCount * oxMult) + " e<sup>−</sup></strong>")
+        : "Elektronenzahl der Oxidation noch nicht aus deiner Eingabe erkennbar.";
+      const redText = redCount > 0
+        ? (redCount + " e<sup>−</sup> × " + redMult + " = <strong>" + (redCount * redMult) + " e<sup>−</sup></strong>")
+        : "Elektronenzahl der Reduktion noch nicht aus deiner Eingabe erkennbar.";
+
+      return "<h3>Deine aktuelle Elektronenbilanz</h3>" + oxText + "<br><br>" + redText;
+    }
+
+    function setMode(mode) {
+      const wasTutorial = appMode === "tutorial";
+      appMode = mode;
+      document.body.dataset.mode = mode;
+      tutorialPanel.hidden = mode !== "tutorial";
+      learningPanel.hidden = mode !== "learn";
+      exerciseLayout.hidden = false;
+
+      modeTutorialBtn.classList.toggle("active", mode === "tutorial");
+      modeLearnBtn.classList.toggle("active", mode === "learn");
+      modePracticeBtn.classList.toggle("active", mode === "practice");
+
+      if (mode === "tutorial") {
+        tutorialStep = 1;
+        setupTutorialExample();
+        renderTutorialStep();
+      } else {
+        clearTutorialFocus();
+        if (wasTutorial && !leavingTutorial) {
+          leavingTutorial = true;
+          neueAufgabe();
+          leavingTutorial = false;
+        }
+      }
+
+      if (mode === "learn") {
+        learningStep = 1;
+        if (!aktuelleAufgabe || aktuelleAufgabe.ox.hintIon) {
+          neueAufgabe();
+        } else {
+          renderLearningStep();
+        }
+        localStorage.setItem("redoxTutorialSeen", "1");
+      } else {
+        oxEditor.classList.remove("learn-focus");
+        redEditor.classList.remove("learn-focus");
+      }
+    }
+
+    function changeLearningStep(delta) {
+      if (delta > 0 && learningStep === 7) {
+        setMode("practice");
+        return;
+      }
+      learningStep = Math.max(1, Math.min(7, learningStep + delta));
+      renderLearningStep();
+    }
+
+    function renderLearningStep() {
+      if (!aktuelleAufgabe || !learningInstruction) return;
+
+      const ox = aktuelleAufgabe.ox;
+      const red = aktuelleAufgabe.red;
+
+      learningProgressText.textContent = "Schritt " + learningStep + " von 7";
+      learningProgressFill.style.width = ((learningStep / 7) * 100) + "%";
+      learnBack.disabled = learningStep === 1;
+      learnNext.textContent = learningStep === 7 ? "Fertig" : "Weiter";
+
+      oxEditor.classList.remove("learn-focus");
+      redEditor.classList.remove("learn-focus");
+
+      let instruction = "";
+      let side = "";
+
+      if (learningStep === 1) {
+        oxEditor.classList.add("learn-focus");
+        redEditor.classList.add("learn-focus");
+        instruction =
+          "<h3>1. Ausgangsteilchen bestimmen</h3>" +
+          "<p>Beginne nur mit den Teilchen <strong>links vom Reaktionspfeil</strong>. Suche zuerst die Elementsymbole im Periodensystem.</p>" +
+          "<p>Prüfe danach beim Nichtmetall, ob es elementar zweiatomig vorkommt. Die Merkhilfe lautet: <strong>H, N, O, F, Cl, Br, I</strong> treten elementar als Zweiermoleküle auf.</p>" +
+          "<p>Trage die Ausgangsteilchen in die passenden Felder ein und setze jeweils den Pfeil. Noch keine Ionenladung und keine Elektronen ergänzen.</p>";
+        side =
+          "<h3>Fragen an dich</h3>" +
+          "Welches Elementsymbol gehört zu <strong>" + ox.name + "</strong>?<br><br>" +
+          "Welches Elementsymbol gehört zu <strong>" + red.name + "</strong>?<br><br>" +
+          "Steht dieses Nichtmetall in der Merkliste der zweiatomigen Elemente?";
+      } else if (learningStep === 2) {
+        oxEditor.classList.add("learn-focus");
+        instruction =
+          "<h3>2. Positive Ionenladung selbst bestimmen</h3>" +
+          "<p>Bei der Oxidation entsteht ein positives Ion. Die Ladung sollst du aus dem Periodensystem herleiten.</p>" +
+          "<div class=\"charge-rule\"><strong>Vorgehen:</strong><br>" +
+          "Hauptgruppe finden → Zahl der Valenzelektronen bestimmen → überlegen, wie viele Elektronen das Metall abgibt, um eine stabile Außenschale zu erreichen.</div>" +
+          "<p>Ergänze anschließend nur das Ion rechts vom Pfeil. Die Elektronen kommen erst im nächsten Schritt.</p>";
+        side = getOxGuidance();
+      } else if (learningStep === 3) {
+        redEditor.classList.add("learn-focus");
+        instruction =
+          "<h3>3. Negative Ionenladung selbst bestimmen</h3>" +
+          "<p>Bei der Reduktion entstehen negative Ionen. Bestimme deren Ladung ebenfalls aus dem Periodensystem.</p>" +
+          "<div class=\"charge-rule\"><strong>Vorgehen:</strong><br>" +
+          "Hauptgruppe finden → Valenzelektronen bestimmen → ausrechnen, wie viele Elektronen bis zu 8 fehlen.</div>" +
+          "<p>Gleiche dabei zuerst auch die Anzahl der Atome aus. Ergänze noch keine Elektronen in der Teilgleichung.</p>";
+        side = getRedGuidance();
+      } else if (learningStep === 4) {
+        oxEditor.classList.add("learn-focus");
+        instruction =
+          "<h3>4. Oxidation mit Elektronen vervollständigen</h3>" +
+          "<p>Jetzt musst du die Ladungen auf beiden Seiten ausgleichen.</p>" +
+          "<p>Links ist das Ausgangsteilchen ungeladen. Rechts stehen das positive Ion und die abgegebenen Elektronen. Ergänze so viele Elektronen, dass die <strong>Gesamtladung links und rechts gleich</strong> ist.</p>" +
+          "<div class=\"input-example\"><strong>Schreibweise:</strong> Elektronen werden als <code>e-</code> geschrieben; mehrere Elektronen erhalten eine Zahl davor.</div>";
+        side =
+          "<h3>Kontrollfrage</h3>" +
+          "Auf welcher Seite müssen abgegebene Elektronen stehen?<br><br>" +
+          "Rechne anschließend die Gesamtladung rechts aus: <em>Ionenladung + Elektronenladung</em>. Sie muss zur linken Seite passen.";
+      } else if (learningStep === 5) {
+        redEditor.classList.add("learn-focus");
+        instruction =
+          "<h3>5. Reduktion mit Elektronen vervollständigen</h3>" +
+          "<p>Auch hier werden jetzt die Ladungen ausgeglichen.</p>" +
+          "<p>Die Elektronen werden aufgenommen und müssen deshalb auf die Seite des Ausgangsteilchens. Ergänze ihre Anzahl so, dass links und rechts dieselbe Gesamtladung besitzen.</p>" +
+          "<p>Prüfe zusätzlich noch einmal, ob auf beiden Seiten gleich viele Atome des Elements stehen.</p>";
+        side =
+          "<h3>Kontrollfragen</h3>" +
+          "Auf welcher Seite müssen aufgenommene Elektronen stehen?<br><br>" +
+          "Wie groß ist die Gesamtladung aller Ionen rechts zusammen?<br><br>" +
+          "Wie viele Elektronen brauchst du links, um genau diese Ladung zu erhalten?";
+      } else if (learningStep === 6) {
+        instruction =
+          "<h3>6. Elektronenzahlen gleich machen</h3>" +
+          "<p>Lies jetzt aus <strong>deinen eigenen Teilgleichungen</strong> ab, wie viele Elektronen abgegeben und aufgenommen werden.</p>" +
+          "<p>Verändere die beiden Multiplikatoren. Ziel ist nur: In den beiden multiplizierten Gleichungen muss am Ende <strong>dieselbe Anzahl an Elektronen</strong> stehen.</p>" +
+          "<div class=\"charge-rule\"><strong>Ohne Rechenwort:</strong><br>Wenn die Zahlen noch verschieden sind, nimm eine Teilgleichung mehrfach. Probiere kleine Multiplikatoren, bis beide Elektronenzahlen gleich werden. Die kleinste gemeinsame Elektronenzahl nennt man anschließend das <strong>kgV</strong>.</div>";
+        side = learningElectronStatus();
+      } else {
+        instruction =
+          "<h3>7. Prüfen und Gesamtgleichung bilden</h3>" +
+          "<p>Kontrolliere deine beiden Teilgleichungen zuerst selbst und klicke dann auf <strong>Prüfen</strong>.</p>" +
+          "<p>Erst wenn alles stimmt, zeigt die Anwendung die Gesamtgleichung. Vorher wird sie nicht vorgegeben.</p>";
+        side =
+          "<h3>Endkontrolle</h3>" +
+          "✓ Auf jeder Seite gleich viele Atome?<br>" +
+          "✓ Gesamtladung in jeder Teilgleichung ausgeglichen?<br>" +
+          "✓ Oxidation: Elektronen abgegeben?<br>" +
+          "✓ Reduktion: Elektronen aufgenommen?<br>" +
+          "✓ Nach den Multiplikatoren gleich viele Elektronen?";
+      }
+
+      learningInstruction.innerHTML = instruction;
+      learningChargeCard.innerHTML = side;
+    }
+
+    function resetOutputs() {
+      feedback.className = "feedback";
+      feedback.style.display = "none";
+      feedback.textContent = "";
+      solution.className = "solution";
+      solution.innerHTML = "";
+    }
+
+    function neueAufgabe() {
+      const oxPool = appMode === "learn" ? oxidationen.filter(item => !item.hintIon) : oxidationen;
+      const ox = zufallAus(oxPool);
+      const red = zufallAus(reduktionen);
+      aktuelleAufgabe = { ox, red };
+
+      let aufgabenText =
+        "Formuliere die Oxidation von <strong>" + ox.name + "</strong>";
+
+      if (ox.hintIon) {
+        aufgabenText += " zum Ion <strong>" + renderEquation(ox.hintIon) + "</strong>";
+      }
+
+      aufgabenText +=
+        " sowie die Reduktion von <strong>" + red.name + "</strong>";
+
+      aufgabe.innerHTML = aufgabenText;
+
+      oxEditor.innerHTML = "";
+      redEditor.innerHTML = "";
+      oxMultInput.value = 1;
+      redMultInput.value = 1;
+
+      oxPreview.innerHTML = "<strong>Multiplizierte Gleichung:</strong> noch keine Eingabe.";
+      redPreview.innerHTML = "<strong>Multiplizierte Gleichung:</strong> noch keine Eingabe.";
+
+      stepEls.forEach(el => el.classList.remove("done"));
+      setInlineMarker(kationMarker, false);
+      setInlineMarker(anionMarker, false);
+
+      resetOutputs();
+      updateStepChecklist();
+      if (appMode === "learn") { learningStep = 1; renderLearningStep(); }
+    }
+
+    function pruefen() {
+      const oxInput = normalizedInputFromEditor(oxEditor);
+      const redInput = normalizedInputFromEditor(redEditor);
+
+      const oxMult = parseMultiplier(oxMultInput);
+      const redMult = parseMultiplier(redMultInput);
+
+      const oxOk = oxInput === normalizedEquation(aktuelleAufgabe.ox.eq);
+      const redOk = redInput === normalizedEquation(aktuelleAufgabe.red.eq);
+
+      const oxElectrons = oxMult * aktuelleAufgabe.ox.electrons;
+      const redElectrons = redMult * aktuelleAufgabe.red.electrons;
+      const multOk = oxElectrons === redElectrons;
+
+      if (oxOk && redOk && multOk) {
+        feedback.className = "feedback ok";
+        feedback.style.display = "block";
+        feedback.innerHTML =
+          "Beide Teilgleichungen und die Multiplikatoren sind korrekt." +
+          "<br><strong>Gesamtgleichung:</strong> " + renderEquation(buildOverallEquation());
+        if (appMode === "tutorial") {
+          tutorialFinalChecked = true;
+          updateTutorialState(false);
+        }
+      } else {
+        const messages = [];
+        if (!oxOk) messages.push("Die Oxidation ist noch nicht korrekt.");
+        if (!redOk) messages.push("Die Reduktion ist noch nicht korrekt.");
+        if (oxOk && redOk && !multOk) messages.push("Die Teilgleichungen stimmen, aber die Multiplikatoren gleichen die Elektronenzahl noch nicht aus.");
+        if ((!oxOk || !redOk) && !multOk) messages.push("Die Multiplikatoren gleichen die Elektronenzahl noch nicht aus.");
+        feedback.className = "feedback warn";
+        feedback.style.display = "block";
+        feedback.textContent = messages.join(" ");
+        if (appMode === "tutorial") {
+          tutorialFinalChecked = false;
+          updateTutorialState(true);
+        }
+      }
+
+      updatePreviews();
+      updateStepChecklist();
+    }
+
+    function loesungAnzeigen() {
+      const lcm = kgV(aktuelleAufgabe.ox.electrons, aktuelleAufgabe.red.electrons);
+      const oxMult = lcm / aktuelleAufgabe.ox.electrons;
+      const redMult = lcm / aktuelleAufgabe.red.electrons;
+
+      solution.className = "solution show";
+      solution.innerHTML =
+        "<strong>Passende Multiplikatoren:</strong> Oxidation " + oxMult + ", Reduktion " + redMult +
+        "<br><strong>Oxidation:</strong> " + oxMult + " · (" + renderEquation(aktuelleAufgabe.ox.eq) + ")" +
+        "<br><strong>Reduktion:</strong> " + redMult + " · (" + renderEquation(aktuelleAufgabe.red.eq) + ")" +
+        "<br><strong>Elektronen:</strong> " + lcm + " e<sup>-</sup> auf beiden Seiten";
+    }
+    attachFormatting(oxEditor);
+    attachFormatting(redEditor);
+    oxMultInput.addEventListener("input", () => { updatePreviews(); updateStepChecklist(); if (appMode === "tutorial") updateTutorialState(false); });
+    redMultInput.addEventListener("input", () => { updatePreviews(); updateStepChecklist(); if (appMode === "tutorial") updateTutorialState(false); });
+
+    neueAufgabe();
+    const initialMode = localStorage.getItem("redoxTutorialSeen") ? "practice" : "tutorial";
+    setMode(initialMode);
+  </script>
+</body>
+</html>
