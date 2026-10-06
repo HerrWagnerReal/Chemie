@@ -1,0 +1,1158 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+  <title>Simulation: Wassermoleküle im Gefäß</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #111827;
+      --glass-border: rgba(180, 220, 255, 0.9);
+      --text: #e5eefc;
+      --muted: #9fb3d1;
+      --accent: #7dd3fc;
+      --app-height: 100dvh;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      overscroll-behavior: none;
+    }
+
+    body {
+      margin: 0;
+      height: var(--app-height);
+      min-height: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: radial-gradient(circle at top, #16213f 0%, #0b1020 55%, #050814 100%);
+      color: var(--text);
+      padding:
+        max(4px, env(safe-area-inset-top))
+        max(6px, env(safe-area-inset-right))
+        max(4px, env(safe-area-inset-bottom))
+        max(6px, env(safe-area-inset-left));
+    }
+
+    .app {
+      width: min(1180px, 100%);
+      height: 100%;
+      min-height: 0;
+      margin: 0 auto;
+      background: rgba(17, 24, 39, 0.88);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 18px 50px rgba(0, 0, 0, 0.38);
+      backdrop-filter: blur(10px);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .header {
+      flex: 0 0 auto;
+      padding: 7px 12px 6px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(0.9rem, 1.8vw, 1.04rem);
+      line-height: 1.15;
+      font-weight: 700;
+    }
+
+    .controls {
+      flex: 0 0 auto;
+      display: grid;
+      grid-template-columns: auto minmax(180px, 1fr) auto;
+      align-items: center;
+      gap: 6px 12px;
+      padding: 6px 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .control {
+      display: grid;
+      grid-template-columns: auto minmax(110px, 1fr) auto;
+      align-items: center;
+      gap: 5px 8px;
+      min-width: 0;
+    }
+
+    .control.compact {
+      grid-template-columns: auto auto;
+      min-width: 0;
+    }
+
+    .control label {
+      font-size: 0.72rem;
+      color: var(--muted);
+      line-height: 1.05;
+      white-space: nowrap;
+    }
+
+    .control input[type="range"] {
+      width: clamp(140px, 25vw, 290px);
+      min-width: 0;
+      cursor: pointer;
+      margin: 0;
+      touch-action: pan-x;
+    }
+
+    .control .value {
+      font-size: 0.79rem;
+      color: var(--accent);
+      font-weight: 700;
+      line-height: 1.05;
+      white-space: nowrap;
+    }
+
+    .buttons {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: nowrap;
+      margin-left: 0;
+    }
+
+    button {
+      border: none;
+      border-radius: 9px;
+      min-height: 40px;
+      padding: 7px 11px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      cursor: pointer;
+      background: #1f3c88;
+      color: white;
+      transition: transform 0.15s ease, opacity 0.15s ease;
+      white-space: nowrap;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+      button:hover { transform: translateY(-1px); }
+    }
+
+    button.secondary { background: #334155; }
+
+    .canvas-wrap {
+      flex: 1 1 auto;
+      min-height: 0;
+      min-width: 0;
+      padding: 5px 8px;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+    }
+
+    canvas {
+      display: block;
+      width: 920px;
+      height: 620px;
+      max-width: none;
+      max-height: none;
+      background: linear-gradient(to bottom, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+      border-radius: 11px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      touch-action: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    .legend {
+      flex: 0 0 auto;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 7px 14px;
+      flex-wrap: wrap;
+      padding: 1px 10px 6px;
+      color: var(--muted);
+      font-size: 0.72rem;
+      line-height: 1.1;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      white-space: nowrap;
+    }
+
+    .dot {
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      border: 1px solid rgba(255,255,255,0.35);
+      flex: 0 0 auto;
+    }
+
+    .dot.oxygen { background: #ef4444; }
+    .dot.hydrogen { background: #ffffff; }
+
+    @media (max-width: 760px) {
+      .controls {
+        grid-template-columns: auto minmax(0, 1fr);
+      }
+
+      .buttons {
+        grid-column: 1 / -1;
+        justify-content: center;
+      }
+
+      .control input[type="range"] {
+        width: min(38vw, 240px);
+      }
+
+      button {
+        min-height: 38px;
+        padding: 6px 10px;
+      }
+    }
+
+    @media (max-height: 700px) and (orientation: landscape) {
+      .header { padding-top: 5px; padding-bottom: 4px; }
+      .controls { padding-top: 4px; padding-bottom: 4px; }
+      button { min-height: 36px; padding-top: 5px; padding-bottom: 5px; }
+      .canvas-wrap { padding-top: 3px; padding-bottom: 3px; }
+      .legend { padding-bottom: 4px; font-size: 0.68rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="header">
+      <h1>Wassermoleküle in einem Gefäß</h1>
+    </div>
+
+    <div class="controls">
+      <div class="control compact">
+        <label>Anzahl Moleküle</label>
+        <div class="value" id="countValue">120</div>
+      </div>
+
+      <div class="control">
+        <label for="speed">Temperatur</label>
+        <input id="speed" type="range" min="0.3" max="2.4" value="1.1" step="0.1" />
+        <div class="value" id="speedValue">38 °C</div>
+      </div>
+
+      <div class="buttons">
+        <button id="toggleBtn">Pausieren</button>
+        <button id="resetBtn" class="secondary">Neu verteilen</button>
+      </div>
+    </div>
+
+    <div class="canvas-wrap">
+      <canvas id="simCanvas" width="920" height="620"></canvas>
+    </div>
+
+    <div class="legend">
+      <div class="legend-item"><span class="dot oxygen"></span> Sauerstoffatom</div>
+      <div class="legend-item"><span class="dot hydrogen"></span> Wasserstoffatom</div>
+      <div class="legend-item"><span class="dot" style="background:#9ca3af"></span> Kation (+)</div>
+      <div class="legend-item"><span class="dot" style="background:#22c55e;width:18px;height:18px"></span> Anion (−)</div>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('simCanvas');
+    const ctx = canvas.getContext('2d');
+    const canvasWrap = document.querySelector('.canvas-wrap');
+    const LOGICAL_WIDTH = 920;
+    const LOGICAL_HEIGHT = 620;
+    const LOGICAL_ASPECT = LOGICAL_WIDTH / LOGICAL_HEIGHT;
+
+    const speedInput = document.getElementById('speed');
+    const countValue = document.getElementById('countValue');
+    const speedValue = document.getElementById('speedValue');
+    const toggleBtn = document.getElementById('toggleBtn');
+    const resetBtn = document.getElementById('resetBtn');
+
+    const vessel = {
+      x: 180,
+      y: 70,
+      width: 560,
+      height: 470,
+      wall: 8,
+      waterFill: 0.82
+    };
+
+    const waterRegion = {
+      get left() { return vessel.x + vessel.wall + 8; },
+      get right() { return vessel.x + vessel.width - vessel.wall - 8; },
+      get top() { return vessel.y + vessel.height * (1 - vessel.waterFill) + 6; },
+      get bottom() { return vessel.y + vessel.height - vessel.wall - 8; }
+    };
+
+    let molecules = [];
+    let running = true;
+    let lastTime = 0;
+
+    const crystal = {
+      x: 0,
+      y: 0,
+      cols: 5,
+      rows: 5,
+      spacing: 0,
+      cationRadius: 10.5,
+      anionRadius: 16.5,
+      dragging: false,
+      dragOffsetX: 0,
+      dragOffsetY: 0,
+      ions: []
+    };
+
+    function rand(min, max) {
+      return Math.random() * (max - min) + min;
+    }
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function getIonPosition(ion) {
+      if (ion.dissolved) {
+        return { x: ion.freeX, y: ion.freeY };
+      }
+      return {
+        x: crystal.x + ion.dx,
+        y: crystal.y + ion.dy
+      };
+    }
+
+    function positionOverlapsCrystal(x, y, moleculeRadius) {
+      for (const ion of crystal.ions) {
+        const pos = getIonPosition(ion);
+        const minDistance = moleculeRadius + ion.radius + 2;
+        if (Math.hypot(x - pos.x, y - pos.y) < minDistance) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    function createMolecule() {
+      const oxygenRadius = 5.25;
+      const hydrogenRadius = 3.15;
+      const offset = 8.25;
+      const angle = rand(0, Math.PI * 2);
+      const speed = rand(0.4, 1.2);
+      const moleculeRadius = offset + hydrogenRadius;
+
+      let x = waterRegion.left + 20;
+      let y = waterRegion.top + 20;
+      let placed = false;
+
+      for (let tries = 0; tries < 500; tries++) {
+        const candidateX = rand(waterRegion.left + moleculeRadius + 2, waterRegion.right - moleculeRadius - 2);
+        const candidateY = rand(waterRegion.top + moleculeRadius + 2, waterRegion.bottom - moleculeRadius - 2);
+
+        if (!positionOverlapsCrystal(candidateX, candidateY, moleculeRadius)) {
+          x = candidateX;
+          y = candidateY;
+          placed = true;
+          break;
+        }
+      }
+
+      if (!placed) {
+        x = waterRegion.left + moleculeRadius + 4;
+        y = waterRegion.top + moleculeRadius + 4;
+      }
+
+      return {
+        x,
+        y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        orientation: rand(0, Math.PI * 2),
+        spin: rand(-0.03, 0.03),
+        oxygenRadius,
+        hydrogenRadius,
+        offset,
+        spread: 2.22,
+        attachedTo: null
+      };
+    }
+
+    function buildCrystal() {
+      crystal.ions = [];
+      crystal.spacing = crystal.anionRadius + crystal.cationRadius;
+
+      for (let row = 0; row < crystal.rows; row++) {
+        for (let col = 0; col < crystal.cols; col++) {
+          const isAnion = (row + col) % 2 === 0;
+          crystal.ions.push({
+            row,
+            col,
+            dx: col * crystal.spacing,
+            dy: row * crystal.spacing,
+            radius: isAnion ? crystal.anionRadius : crystal.cationRadius,
+            charge: isAnion ? '−' : '+',
+            fill: isAnion ? '#22c55e' : '#9ca3af',
+            isAnion,
+            dissolved: false,
+            freeX: 0,
+            freeY: 0,
+            driftVx: 0,
+            driftVy: 0,
+            hydrationShell: [],
+            shellRotation: 0,
+            shellAngularVelocity: 0
+          });
+        }
+      }
+
+      const totalWidth = (crystal.cols - 1) * crystal.spacing;
+      const totalHeight = (crystal.rows - 1) * crystal.spacing;
+      crystal.x = vessel.x + vessel.width / 2 - totalWidth / 2;
+      crystal.y = vessel.y - totalHeight - crystal.anionRadius - 18;
+    }
+
+    function rebuildMolecules() {
+      const count = 120;
+      molecules = Array.from({ length: count }, () => createMolecule());
+    }
+
+    function syncViewportHeight() {
+      const viewportHeight = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+      document.documentElement.style.setProperty('--app-height', `${Math.max(320, Math.floor(viewportHeight))}px`);
+    }
+
+    function resizeForDisplay() {
+      if (!canvasWrap) return;
+
+      const ratio = window.devicePixelRatio || 1;
+      const wrapStyle = getComputedStyle(canvasWrap);
+      const horizontalPadding = parseFloat(wrapStyle.paddingLeft) + parseFloat(wrapStyle.paddingRight);
+      const verticalPadding = parseFloat(wrapStyle.paddingTop) + parseFloat(wrapStyle.paddingBottom);
+      const availableWidth = Math.max(1, canvasWrap.clientWidth - horizontalPadding);
+      const availableHeight = Math.max(1, canvasWrap.clientHeight - verticalPadding);
+
+      let cssWidth = availableWidth;
+      let cssHeight = cssWidth / LOGICAL_ASPECT;
+
+      if (cssHeight > availableHeight) {
+        cssHeight = availableHeight;
+        cssWidth = cssHeight * LOGICAL_ASPECT;
+      }
+
+      cssWidth = Math.max(1, Math.floor(cssWidth));
+      cssHeight = Math.max(1, Math.floor(cssHeight));
+
+      if (Math.abs(canvas.clientWidth - cssWidth) > 1 || Math.abs(canvas.clientHeight - cssHeight) > 1) {
+        canvas.style.width = `${cssWidth}px`;
+        canvas.style.height = `${cssHeight}px`;
+      }
+
+      const displayWidth = Math.max(1, Math.round(cssWidth * ratio));
+      const displayHeight = Math.max(1, Math.round(cssHeight * ratio));
+
+      if (canvas.width !== displayWidth || canvas.height !== displayHeight) {
+        canvas.width = displayWidth;
+        canvas.height = displayHeight;
+      }
+    }
+
+    function setLogicalCanvasTransform() {
+      const ratio = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = rect.width / LOGICAL_WIDTH;
+      const scaleY = rect.height / LOGICAL_HEIGHT;
+      ctx.setTransform(ratio * scaleX, 0, 0, ratio * scaleY, 0, 0);
+    }
+
+    function updateLabels() {
+      countValue.textContent = '120';
+      const temp = Math.round(((Number(speedInput.value) - 0.3) / (2.4 - 0.3)) * (99 - 1) + 1);
+      speedValue.textContent = temp + ' °C';
+    }
+
+    function drawBackground(w, h) {
+      const grd = ctx.createLinearGradient(0, 0, 0, h);
+      grd.addColorStop(0, '#09111f');
+      grd.addColorStop(1, '#0c1222');
+      ctx.fillStyle = grd;
+      ctx.fillRect(0, 0, w, h);
+    }
+
+    function drawVessel() {
+      const waterTop = waterRegion.top;
+      const bottom = vessel.y + vessel.height;
+      const right = vessel.x + vessel.width;
+
+      ctx.save();
+      ctx.fillStyle = 'rgba(140, 200, 255, 0.08)';
+      ctx.fillRect(vessel.x, vessel.y, vessel.width, vessel.height);
+
+      const waterGradient = ctx.createLinearGradient(0, waterTop, 0, bottom);
+      waterGradient.addColorStop(0, 'rgba(125, 211, 252, 0.18)');
+      waterGradient.addColorStop(1, 'rgba(59, 130, 246, 0.34)');
+      ctx.fillStyle = waterGradient;
+      ctx.fillRect(vessel.x + vessel.wall, waterTop, vessel.width - vessel.wall * 2, vessel.height - vessel.wall - (waterTop - vessel.y));
+
+      ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(vessel.x + vessel.wall, waterTop + 0.5);
+      ctx.lineTo(right - vessel.wall, waterTop + 0.5);
+      ctx.stroke();
+
+      ctx.strokeStyle = 'rgba(180, 220, 255, 0.95)';
+      ctx.lineWidth = vessel.wall;
+      ctx.beginPath();
+      ctx.moveTo(vessel.x, vessel.y);
+      ctx.lineTo(vessel.x, bottom);
+      ctx.lineTo(right, bottom);
+      ctx.lineTo(right, vessel.y);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawMolecule(m) {
+      const h1x = m.x + Math.cos(m.orientation) * m.offset;
+      const h1y = m.y + Math.sin(m.orientation) * m.offset;
+      const h2x = m.x + Math.cos(m.orientation + m.spread) * m.offset;
+      const h2y = m.y + Math.sin(m.orientation + m.spread) * m.offset;
+
+      ctx.beginPath();
+      ctx.arc(m.x, m.y, m.oxygenRadius, 0, Math.PI * 2);
+      ctx.fillStyle = '#ef4444';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(h1x, h1y, m.hydrogenRadius, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(h2x, h2y, m.hydrogenRadius, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    function drawCrystal() {
+      for (const ion of crystal.ions) {
+        const pos = getIonPosition(ion);
+        const x = pos.x;
+        const y = pos.y;
+
+        ctx.beginPath();
+        ctx.arc(x, y, ion.radius, 0, Math.PI * 2);
+        ctx.fillStyle = ion.fill;
+        ctx.fill();
+        ctx.strokeStyle = ion.dissolved ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.35)';
+        ctx.lineWidth = ion.dissolved ? 2 : 1.2;
+        ctx.stroke();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `${ion.isAnion ? 13 : 11}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(ion.charge, x, y + 0.5);
+      }
+    }
+
+    function pointInCrystal(px, py) {
+      const padding = crystal.anionRadius + 6;
+      const width = (crystal.cols - 1) * crystal.spacing;
+      const height = (crystal.rows - 1) * crystal.spacing;
+      return (
+        px >= crystal.x - padding &&
+        px <= crystal.x + width + padding &&
+        py >= crystal.y - padding &&
+        py <= crystal.y + height + padding
+      );
+    }
+
+    function constrainCrystal() {
+      const padding = crystal.anionRadius + 2;
+      const width = (crystal.cols - 1) * crystal.spacing;
+      const height = (crystal.rows - 1) * crystal.spacing;
+
+      crystal.x = clamp(crystal.x, vessel.x + padding, vessel.x + vessel.width - width - padding);
+
+      const minY = vessel.y - height - padding - 24;
+      const maxY = waterRegion.bottom - height - padding;
+      crystal.y = clamp(crystal.y, minY, maxY);
+    }
+
+    function getMoleculeCollisionRadius(m) {
+      return m.offset + m.hydrogenRadius;
+    }
+
+    function getHydrationShellCollisionRadius(ion) {
+      let maxDistance = ion.radius;
+      for (const molecule of ion.hydrationShell) {
+        if (!molecule.attachedTo) continue;
+        const outerEdge = molecule.attachedTo.distance + getMoleculeCollisionRadius(molecule);
+        maxDistance = Math.max(maxDistance, outerEdge);
+      }
+      return maxDistance;
+    }
+
+    function resolveHydrationShellCollision(ionA, ionB) {
+      if (ionA === ionB) return;
+      if (!ionA.dissolved || !ionB.dissolved) return;
+      if (ionA.hydrationShell.length === 0 || ionB.hydrationShell.length === 0) return;
+
+      const posA = getIonPosition(ionA);
+      const posB = getIonPosition(ionB);
+      const dx = posB.x - posA.x;
+      const dy = posB.y - posA.y;
+      const distance = Math.hypot(dx, dy) || 0.0001;
+      const minDistance = getHydrationShellCollisionRadius(ionA) + getHydrationShellCollisionRadius(ionB);
+      if (distance >= minDistance) return;
+
+      const nx = dx / distance;
+      const ny = dy / distance;
+      const overlap = minDistance - distance;
+
+      ionA.freeX -= nx * overlap * 0.5;
+      ionA.freeY -= ny * overlap * 0.5;
+      ionB.freeX += nx * overlap * 0.5;
+      ionB.freeY += ny * overlap * 0.5;
+
+      const relVx = ionB.driftVx - ionA.driftVx;
+      const relVy = ionB.driftVy - ionA.driftVy;
+      const alongNormal = relVx * nx + relVy * ny;
+      if (alongNormal < 0) {
+        const impulse = alongNormal * 0.8;
+        ionA.driftVx += nx * impulse;
+        ionA.driftVy += ny * impulse;
+        ionB.driftVx -= nx * impulse;
+        ionB.driftVy -= ny * impulse;
+      }
+    }
+
+    function resolveHydrationShellIonCollision(shellIon, otherIon) {
+      if (!shellIon.dissolved) return;
+      if (shellIon === otherIon) return;
+      if (shellIon.hydrationShell.length === 0) return;
+
+      const shellPos = getIonPosition(shellIon);
+      const otherPos = getIonPosition(otherIon);
+      const dx = otherPos.x - shellPos.x;
+      const dy = otherPos.y - shellPos.y;
+      const distance = Math.hypot(dx, dy) || 0.0001;
+      const minDistance = getHydrationShellCollisionRadius(shellIon) + otherIon.radius;
+      if (distance >= minDistance) return;
+
+      const nx = dx / distance;
+      const ny = dy / distance;
+      const overlap = minDistance - distance;
+
+      shellIon.freeX -= nx * overlap;
+      shellIon.freeY -= ny * overlap;
+
+      const alongNormal = shellIon.driftVx * nx + shellIon.driftVy * ny;
+      if (alongNormal > 0) {
+        shellIon.driftVx -= 2 * alongNormal * nx;
+        shellIon.driftVy -= 2 * alongNormal * ny;
+      }
+    }
+
+    function getAttachmentDistanceForMolecule(ion, molecule) {
+      return ion.radius + molecule.offset + 4.5;
+    }
+
+    function getAttachmentSlotAngle(slotIndex) {
+      return (Math.PI * 2 * slotIndex) / 4;
+    }
+
+    function getWorldAttachmentSlotAngle(ion, slotIndex) {
+      return getAttachmentSlotAngle(slotIndex) + (ion.dissolved ? ion.shellRotation : 0);
+    }
+
+    function isAttachmentSlotBlocked(ion, slotIndex, molecule) {
+      const pos = getIonPosition(ion);
+      const attachDistance = getAttachmentDistanceForMolecule(ion, molecule);
+      const shellAngle = getWorldAttachmentSlotAngle(ion, slotIndex);
+      const slotX = pos.x + Math.cos(shellAngle) * attachDistance;
+      const slotY = pos.y + Math.sin(shellAngle) * attachDistance;
+      const moleculeRadius = getMoleculeCollisionRadius(molecule);
+
+      for (const otherIon of crystal.ions) {
+        if (otherIon === ion) continue;
+        if (otherIon.dissolved) continue;
+
+        const otherPos = getIonPosition(otherIon);
+        const minDistance = moleculeRadius + otherIon.radius + 2;
+        if (Math.hypot(slotX - otherPos.x, slotY - otherPos.y) < minDistance) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    function findAvailableAttachmentSlot(ion, molecule, ignoreBlock = false) {
+      const occupiedSlots = new Set(
+        ion.hydrationShell
+          .filter(attachedMolecule => attachedMolecule.attachedTo)
+          .map(attachedMolecule => attachedMolecule.attachedTo.slotIndex)
+      );
+
+      for (let slotIndex = 0; slotIndex < 4; slotIndex++) {
+        if (occupiedSlots.has(slotIndex)) continue;
+        if (!ignoreBlock && isAttachmentSlotBlocked(ion, slotIndex, molecule)) continue;
+        return slotIndex;
+      }
+      return null;
+    }
+
+    function resolveMoleculePairCollision(a, b) {
+      const aAttached = Boolean(a.attachedTo);
+      const bAttached = Boolean(b.attachedTo);
+      if (aAttached && bAttached) return;
+
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const distance = Math.hypot(dx, dy) || 0.0001;
+      const minDistance = getMoleculeCollisionRadius(a) + getMoleculeCollisionRadius(b);
+      if (distance >= minDistance) return;
+
+      const nx = dx / distance;
+      const ny = dy / distance;
+      const overlap = minDistance - distance;
+
+      if (!aAttached && !bAttached) {
+        a.x -= nx * overlap * 0.5;
+        a.y -= ny * overlap * 0.5;
+        b.x += nx * overlap * 0.5;
+        b.y += ny * overlap * 0.5;
+
+        const relVx = b.vx - a.vx;
+        const relVy = b.vy - a.vy;
+        const alongNormal = relVx * nx + relVy * ny;
+        if (alongNormal < 0) {
+          const impulse = alongNormal;
+          a.vx += nx * impulse;
+          a.vy += ny * impulse;
+          b.vx -= nx * impulse;
+          b.vy -= ny * impulse;
+        }
+        return;
+      }
+
+      if (aAttached && !bAttached) {
+        b.x += nx * overlap;
+        b.y += ny * overlap;
+        const alongNormal = b.vx * nx + b.vy * ny;
+        if (alongNormal < 0) {
+          b.vx -= 2 * alongNormal * nx;
+          b.vy -= 2 * alongNormal * ny;
+        }
+        return;
+      }
+
+      if (!aAttached && bAttached) {
+        a.x -= nx * overlap;
+        a.y -= ny * overlap;
+        const alongNormal = a.vx * nx + a.vy * ny;
+        if (alongNormal > 0) {
+          a.vx -= 2 * alongNormal * nx;
+          a.vy -= 2 * alongNormal * ny;
+        }
+      }
+    }
+
+    function attachMoleculeToIon(molecule, ion, ignoreBlock = false) {
+      if (molecule.attachedTo || ion.hydrationShell.length >= 4) return false;
+
+      const slotIndex = findAvailableAttachmentSlot(ion, molecule, ignoreBlock);
+      if (slotIndex === null) return false;
+
+      ion.hydrationShell.push(molecule);
+      molecule.attachedTo = {
+        ion,
+        slotIndex,
+        distance: getAttachmentDistanceForMolecule(ion, molecule)
+      };
+      molecule.vx = 0;
+      molecule.vy = 0;
+
+      if (!ion.dissolved && ion.hydrationShell.length >= 2) {
+        const pos = getIonPosition(ion);
+        ion.dissolved = true;
+        ion.freeX = pos.x;
+        ion.freeY = pos.y;
+
+        const centerX = crystal.x + ((crystal.cols - 1) * crystal.spacing) / 2;
+        const centerY = crystal.y + ((crystal.rows - 1) * crystal.spacing) / 2;
+        const dx = pos.x - centerX;
+        const dy = pos.y - centerY;
+        const len = Math.hypot(dx, dy) || 1;
+        ion.driftVx = (dx / len) * 0.45;
+        ion.driftVy = (dy / len) * 0.45;
+        ion.shellAngularVelocity = rand(-0.02, 0.02);
+      }
+      return true;
+    }
+
+    function resolveMoleculeIonCollision(molecule, ion) {
+      if (molecule.attachedTo) return;
+      if (ion.hydrationShell.length >= 4) return;
+
+      const pos = getIonPosition(ion);
+      const ionX = pos.x;
+      const ionY = pos.y;
+
+      const dx = molecule.x - ionX;
+      const dy = molecule.y - ionY;
+      const distance = Math.hypot(dx, dy) || 0.0001;
+      const minDistance = getMoleculeCollisionRadius(molecule) + ion.radius;
+      if (distance >= minDistance) return;
+
+      const nx = dx / distance;
+      const ny = dy / distance;
+
+      const hydrogenSideAngle = molecule.orientation + molecule.spread * 0.5;
+      const hx = Math.cos(hydrogenSideAngle);
+      const hy = Math.sin(hydrogenSideAngle);
+
+      const dot = hx * nx + hy * ny;
+      const correctSide = (ion.isAnion && dot < -0.75) || (!ion.isAnion && dot > 0.75);
+
+      if (correctSide) {
+        let attached = attachMoleculeToIon(molecule, ion);
+        if (!attached && ion.hydrationShell.length < 2) {
+          attached = attachMoleculeToIon(molecule, ion, true);
+        }
+        if (attached) return;
+      }
+
+      const overlap = minDistance - distance;
+      molecule.x += nx * overlap;
+      molecule.y += ny * overlap;
+
+      const alongNormal = molecule.vx * nx + molecule.vy * ny;
+      if (alongNormal < 0) {
+        molecule.vx -= 2 * alongNormal * nx;
+        molecule.vy -= 2 * alongNormal * ny;
+      }
+    }
+
+    function resolveCollisions() {
+      for (let i = 0; i < molecules.length; i++) {
+        for (let j = i + 1; j < molecules.length; j++) {
+          resolveMoleculePairCollision(molecules[i], molecules[j]);
+        }
+      }
+
+      const dissolvedIons = crystal.ions.filter(ion => ion.dissolved && ion.hydrationShell.length > 0);
+      for (let i = 0; i < dissolvedIons.length; i++) {
+        for (let j = i + 1; j < dissolvedIons.length; j++) {
+          resolveHydrationShellCollision(dissolvedIons[i], dissolvedIons[j]);
+        }
+      }
+
+      for (const shellIon of dissolvedIons) {
+        for (const otherIon of crystal.ions) {
+          resolveHydrationShellIonCollision(shellIon, otherIon);
+        }
+      }
+
+      for (const molecule of molecules) {
+        if (!molecule.attachedTo) {
+          for (const ion of crystal.ions) {
+            resolveMoleculeIonCollision(molecule, ion);
+          }
+
+          const margin = getMoleculeCollisionRadius(molecule) + 2;
+          molecule.x = clamp(molecule.x, waterRegion.left + margin, waterRegion.right - margin);
+          molecule.y = clamp(molecule.y, waterRegion.top + margin, waterRegion.bottom - margin);
+        }
+      }
+    }
+
+    function computeElectricAlignment(m) {
+      let fx = 0;
+      let fy = 0;
+      const influenceRadius = 120;
+      const hydrogenBisectorOffset = m.spread * 0.5;
+
+      for (const ion of crystal.ions) {
+        const pos = getIonPosition(ion);
+        const dx = pos.x - m.x;
+        const dy = pos.y - m.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist > influenceRadius || dist < 0.001) continue;
+
+        const falloff = 1 - dist / influenceRadius;
+        const strength = falloff * falloff;
+        const ux = dx / dist;
+        const uy = dy / dist;
+
+        if (ion.isAnion) {
+          fx += ux * strength;
+          fy += uy * strength;
+        } else {
+          fx -= ux * strength;
+          fy -= uy * strength;
+        }
+      }
+
+      if (Math.abs(fx) < 1e-6 && Math.abs(fy) < 1e-6) {
+        return m.orientation;
+      }
+
+      const bisectorAngle = Math.atan2(fy, fx);
+      return bisectorAngle - hydrogenBisectorOffset;
+    }
+
+    function updateMolecule(m, dt) {
+      if (m.attachedTo) {
+        const attachedIon = m.attachedTo.ion;
+        const pos = getIonPosition(attachedIon);
+        const ix = pos.x;
+        const iy = pos.y;
+
+        const slotIndex = m.attachedTo.slotIndex % 4;
+        const shellAngle = getWorldAttachmentSlotAngle(attachedIon, slotIndex);
+        const dist = m.attachedTo.distance;
+
+        m.x = ix + Math.cos(shellAngle) * dist;
+        m.y = iy + Math.sin(shellAngle) * dist;
+
+        const directionToIon = Math.atan2(iy - m.y, ix - m.x);
+        const targetAngle = attachedIon.isAnion
+          ? directionToIon - m.spread * 0.5
+          : directionToIon + Math.PI - m.spread * 0.5;
+
+        let diff = targetAngle - m.orientation;
+        diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+        m.orientation += diff * 0.18;
+        m.vx = 0;
+        m.vy = 0;
+        return;
+      }
+
+      const speedFactor = Number(speedInput.value);
+      const jitter = 0.015;
+
+      m.vx += rand(-jitter, jitter) * 60 * dt;
+      m.vy += rand(-jitter, jitter) * 60 * dt;
+
+      const maxSpeed = 1.8 * speedFactor;
+      const currentSpeed = Math.hypot(m.vx, m.vy) || 0.0001;
+      if (currentSpeed > maxSpeed) {
+        m.vx = (m.vx / currentSpeed) * maxSpeed;
+        m.vy = (m.vy / currentSpeed) * maxSpeed;
+      }
+
+      m.x += m.vx * speedFactor * 60 * dt;
+      m.y += m.vy * speedFactor * 60 * dt;
+
+      const targetAngle = computeElectricAlignment(m);
+      let diff = targetAngle - m.orientation;
+      diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+      m.orientation += diff * 0.2;
+      m.orientation += m.spin * 10 * dt;
+
+      const margin = m.offset + m.oxygenRadius + 2;
+      const left = waterRegion.left + margin;
+      const right = waterRegion.right - margin;
+      const top = waterRegion.top + margin;
+      const bottom = waterRegion.bottom - margin;
+
+      if (m.x < left) {
+        m.x = left;
+        m.vx *= -1;
+      } else if (m.x > right) {
+        m.x = right;
+        m.vx *= -1;
+      }
+
+      if (m.y < top) {
+        m.y = top;
+        m.vy *= -1;
+      } else if (m.y > bottom) {
+        m.y = bottom;
+        m.vy *= -1;
+      }
+    }
+
+    function updateDissolvedIons(dt) {
+      for (const ion of crystal.ions) {
+        if (!ion.dissolved) continue;
+
+        ion.driftVx += rand(-0.01, 0.01) * 60 * dt;
+        ion.driftVy += rand(-0.01, 0.01) * 60 * dt;
+        ion.shellAngularVelocity += rand(-0.001, 0.001) * 60 * dt;
+
+        const driftSpeed = Math.hypot(ion.driftVx, ion.driftVy) || 0.0001;
+        const maxDrift = 0.6;
+        if (driftSpeed > maxDrift) {
+          ion.driftVx = (ion.driftVx / driftSpeed) * maxDrift;
+          ion.driftVy = (ion.driftVy / driftSpeed) * maxDrift;
+        }
+
+        ion.shellAngularVelocity = clamp(ion.shellAngularVelocity, -0.05, 0.05);
+
+        ion.freeX += ion.driftVx * 60 * dt;
+        ion.freeY += ion.driftVy * 60 * dt;
+        ion.shellRotation += ion.shellAngularVelocity * 60 * dt;
+
+        const shellRadius = getHydrationShellCollisionRadius(ion) + 2;
+        if (ion.freeX < waterRegion.left + shellRadius || ion.freeX > waterRegion.right - shellRadius) {
+          ion.driftVx *= -1;
+          ion.freeX = clamp(ion.freeX, waterRegion.left + shellRadius, waterRegion.right - shellRadius);
+        }
+        if (ion.freeY < waterRegion.top + shellRadius || ion.freeY > waterRegion.bottom - shellRadius) {
+          ion.driftVy *= -1;
+          ion.freeY = clamp(ion.freeY, waterRegion.top + shellRadius, waterRegion.bottom - shellRadius);
+        }
+      }
+    }
+
+    function runSelfChecks() {
+      const testIon = { dissolved: false, shellRotation: 0, dx: 0, dy: 0 };
+      const angleA = getWorldAttachmentSlotAngle(testIon, 2);
+      console.assert(Number.isFinite(angleA), 'Slot-Winkel muss endlich sein.');
+
+      const testAttachedIon = {
+        isAnion: true,
+        dissolved: true,
+        shellRotation: 0.5,
+        freeX: 100,
+        freeY: 100
+      };
+      const testMolecule = {
+        x: 100,
+        y: 100,
+        vx: 0,
+        vy: 0,
+        orientation: 0,
+        spin: 0,
+        oxygenRadius: 5.25,
+        hydrogenRadius: 3.15,
+        offset: 8.25,
+        spread: 2.22,
+        attachedTo: { ion: testAttachedIon, slotIndex: 0, distance: 20 }
+      };
+      updateMolecule(testMolecule, 0.016);
+      console.assert(Number.isFinite(testMolecule.x) && Number.isFinite(testMolecule.y), 'Angelagertes Molekül muss gültige Koordinaten behalten.');
+    }
+
+    function draw() {
+      setLogicalCanvasTransform();
+      drawBackground(LOGICAL_WIDTH, LOGICAL_HEIGHT);
+      drawVessel();
+      drawCrystal();
+      for (const molecule of molecules) {
+        drawMolecule(molecule);
+      }
+    }
+
+    function animate(timestamp) {
+      if (!lastTime) lastTime = timestamp;
+      const dt = Math.min((timestamp - lastTime) / 1000, 0.033);
+      lastTime = timestamp;
+
+      resizeForDisplay();
+
+      if (running) {
+        updateDissolvedIons(dt);
+        for (const molecule of molecules) {
+          updateMolecule(molecule, dt);
+        }
+        resolveCollisions();
+      }
+
+      draw();
+      requestAnimationFrame(animate);
+    }
+
+    speedInput.addEventListener('input', updateLabels);
+
+    toggleBtn.addEventListener('click', () => {
+      running = !running;
+      toggleBtn.textContent = running ? 'Pausieren' : 'Fortsetzen';
+    });
+
+    resetBtn.addEventListener('click', () => {
+      buildCrystal();
+      constrainCrystal();
+      rebuildMolecules();
+    });
+
+    function getCanvasPoint(event) {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: (event.clientX - rect.left) * (LOGICAL_WIDTH / rect.width),
+        y: (event.clientY - rect.top) * (LOGICAL_HEIGHT / rect.height)
+      };
+    }
+
+    canvas.addEventListener('pointerdown', (event) => {
+      const p = getCanvasPoint(event);
+      if (pointInCrystal(p.x, p.y)) {
+        crystal.dragging = true;
+        crystal.dragOffsetX = p.x - crystal.x;
+        crystal.dragOffsetY = p.y - crystal.y;
+        canvas.setPointerCapture(event.pointerId);
+      }
+    });
+
+    canvas.addEventListener('pointermove', (event) => {
+      if (!crystal.dragging) return;
+      const p = getCanvasPoint(event);
+      crystal.x = p.x - crystal.dragOffsetX;
+      crystal.y = p.y - crystal.dragOffsetY;
+      constrainCrystal();
+    });
+
+    canvas.addEventListener('pointerup', (event) => {
+      crystal.dragging = false;
+      if (canvas.hasPointerCapture(event.pointerId)) {
+        canvas.releasePointerCapture(event.pointerId);
+      }
+    });
+
+    canvas.addEventListener('pointerleave', () => {
+      crystal.dragging = false;
+    });
+
+    window.addEventListener('resize', () => {
+      syncViewportHeight();
+      resizeForDisplay();
+      draw();
+    });
+
+    window.addEventListener('orientationchange', () => {
+      syncViewportHeight();
+      resizeForDisplay();
+      draw();
+    });
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', () => {
+        syncViewportHeight();
+        resizeForDisplay();
+      });
+    }
+
+    syncViewportHeight();
+    resizeForDisplay();
+    updateLabels();
+    buildCrystal();
+    constrainCrystal();
+    rebuildMolecules();
+    runSelfChecks();
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>
